@@ -1,20 +1,37 @@
-import React from 'react'
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 function Sidebar() {
+  const pathname = usePathname();
+
+  const navItems = [
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Halls", href: "/dashboard/halls" },
+    { label: "Courses", href: "/dashboard/courses" },
+    { label: "Supervisors", href: "/dashboard/supervisors" },
+    { label: "Generate Timetable", href: "/dashboard/generate" },
+  ];
+
   return (
-    <>
-    <div className="w-64 h-screen-[130px] bg-white text-blue-800 p-6">
+    <div className="w-64 min-h-screen bg-white text-blue-800 p-6">
       <h2 className="text-xl font-bold mb-6">Exam System</h2>
       <ul className="space-y-4">
-        <li className="hover:text-blue-400 cursor-pointer">Dashboard</li>
-        <li className="hover:text-blue-400 cursor-pointer">Halls</li>
-        <li className="hover:text-blue-400 cursor-pointer">Courses</li>
-        <li className="hover:text-blue-400 cursor-pointer">Supervisors</li>
-        <li className="hover:text-blue-400 cursor-pointer">Generate Timetable</li>
+        {navItems.map((item) => (
+          <li key={item.href}>
+            <Link
+              href={item.href}
+              className={`block hover:text-blue-400 transition duration-200 ${
+                pathname === item.href ? "text-blue-400 font-semibold" : ""
+              }`}
+            >
+              {item.label}
+            </Link>
+          </li>
+        ))}
       </ul>
     </div>
-    </>
-  )
+  );
 }
 
-export default Sidebar
+export default Sidebar;
