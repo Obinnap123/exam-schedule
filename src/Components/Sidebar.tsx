@@ -26,7 +26,7 @@ function Sidebar({ isSidebarOpen, toggleSidebar }: SidebarProps) {
       <div
         className={`${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } fixed top-0 left-0 w-64 min-h-[dvh] bg-white text-blue-800 p-6 z-50 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:block`}
+        } fixed top-0 left-0 w-64 min-h-[100dvh] bg-white text-blue-800 p-6 z-50 transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:block`}
       >
         {/* Close Button */}
         <div className="flex justify-end md:hidden">

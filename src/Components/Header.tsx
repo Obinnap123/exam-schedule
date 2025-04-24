@@ -23,7 +23,7 @@ function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
           className="material-icons cursor-pointer"
           onClick={toggleSidebar}
         >
-          menu
+          {isSidebarOpen ? "close" : "menu"} {/* Toggle between "menu" and "close" icons */}
         </span>
       </div>
     </div>

@@ -1,12 +1,14 @@
 import Layout from "@/Components/Layout";
-import Image from "next/image";
 
-export default function Home() {
+function Home() {
   return (
     <>
       <Layout>
-        <div className="text-2xl font-semibold text-black">Welcome to the Dashboard</div>
+        <div className="text-2xl font-semibold text-black">
+          Welcome to the Dashboard
+        </div>
       </Layout>
     </>
   );
 }
+export default Home;
