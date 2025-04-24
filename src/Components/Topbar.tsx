@@ -8,7 +8,7 @@ type TopbarProps = {
 function Topbar({ title }: TopbarProps) {
   return (
     <>
-      <div className="h-16 bg-white shadow-md px-6 flex items-center justify-between mt-[30px] rounded-[5px]">
+      <div className="h-16 bg-white shadow-md px-4 md:px-6 flex items-center justify-between mt-[30px] rounded-[5px]">
         <h3 className="text-xl font-semibold text-black">{title}</h3>
         <div className="flex items-center space-x-4">
           <span className="text-black">Hello, Admin</span>

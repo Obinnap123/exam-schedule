@@ -1,10 +1,32 @@
+// Header.tsx
 import React from "react";
 
-function Header() {
+interface HeaderProps {
+  isSidebarOpen: boolean;
+  toggleSidebar: () => void;
+}
+
+function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
   return (
-    <>
-      <div className="p-6 text-2xl bg-indigo-900">AI-Powered Exam Scheduling System</div>
-    </>
+    <div className="w-[100%] flex justify-between bg-indigo-900 p-4 items-center text-white">
+      {/* Title */}
+      <div className="text-2xl">
+        <span className="md:hidden">Exam Scheduling</span>
+        <span className="hidden md:inline">
+          AI-Powered Exam Scheduling System
+        </span>
+      </div>
+
+      {/* Menu Icon (visible only on mobile) */}
+      <div className="md:hidden">
+        <span
+          className="material-icons cursor-pointer"
+          onClick={toggleSidebar}
+        >
+          menu
+        </span>
+      </div>
+    </div>
   );
 }
 
