@@ -30,7 +30,7 @@ function DashboardHome() {
 
   /* cards config */
   const cards = [
-    { label: "Halls", count: halls.length, href: "/dashboard/hall" },
+    { label: "Halls", count: halls.length, href: "/dashboard/halls" },
     { label: "Courses", count: courses.length, href: "/dashboard/courses" },
     {
       label: "Supervisors",
@@ -66,19 +66,19 @@ function DashboardHome() {
         <h2 className="text-lg font-semibold">Quick actions</h2>
         <div className="flex flex-wrap gap-4">
           <Link
-            href="/dashboard/halls"
+            href="/dashboard/halls?add=true"
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             + Add Hall
           </Link>
           <Link
-            href="/dashboard/courses"
+            href="/dashboard/courses?add=true"
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             + Add Course
           </Link>
           <Link
-            href="/dashboard/supervisors"
+           href="/dashboard/supervisors?add=true"
             className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             + Add Supervisor

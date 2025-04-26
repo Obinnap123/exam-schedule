@@ -39,7 +39,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Content Area */}
         <div className="flex-1 flex flex-col w-[100%] lg:max-w-[700px] xl:max-w-[970px] [@media(min-width:1440px)]:max-w-[1100px] mx-auto">
           <Topbar title={pageTitle} />
-          <main className="p-4 md:p-6 min-h-[100dvh] bg-white my-[30px] rounded-[5px]">
+          <main className="p-4 md:p-6 min-h-[90dvh] bg-white my-[30px] rounded-[5px]">
             {children}
           </main>
         </div>

@@ -1,7 +1,10 @@
+// src/app/courses/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Modal from "@/Components/Modal";
+import { useCourseContext } from "../../../context/CourseContext"; // Import the shared context
 
 /* ---------- types ---------- */
 type Course = {
@@ -36,6 +39,40 @@ function CoursesPage() {
     department: "",
   });
 
+  /* Shared state for parsed courses */
+  const { courses: parsedCourses, addCourses } = useCourseContext();
+
+  /* Merge parsed courses with existing courses */
+  useEffect(() => {
+    if (parsedCourses.length > 0) {
+      const newCourses = parsedCourses
+        .filter(
+          (parsedCourse: Course) =>
+            !courses.some(
+              (existingCourse) =>
+                existingCourse.code.toUpperCase() ===
+                parsedCourse.code.toUpperCase()
+            )
+        )
+        .map((parsedCourse: Course) => ({
+          ...parsedCourse,
+          id: Date.now() + Math.random(), // Generate unique ID
+        }));
+
+      setCourses((prevCourses) => [...prevCourses, ...newCourses]);
+    }
+  }, [parsedCourses]);
+
+  /* check for ?add=true in URL to open modal */
+  const searchParams = useSearchParams();
+  const shouldOpenModal = searchParams.get("add") === "true";
+
+  useEffect(() => {
+    if (shouldOpenModal) {
+      setOpen(true);
+    }
+  }, [shouldOpenModal]);
+
   /* helpers */
   const resetForm = () =>
     setForm({
@@ -51,7 +88,6 @@ function CoursesPage() {
     e.preventDefault();
     if (!form.code || !form.title) return;
 
-    /* basic uniqueness check */
     const exists = courses.some(
       (c) => c.code.toUpperCase() === form.code.toUpperCase()
     );
@@ -85,46 +121,47 @@ function CoursesPage() {
         </button>
       </div>
 
-      {/* table */}
-      <table className="w-full overflow-hidden rounded border">
-        <thead className="bg-gray-100 text-left">
-          <tr>
-            <th className="p-3">Code</th>
-            <th className="p-3">Title</th>
-            <th className="p-3">Level</th>
-            <th className="p-3">Students</th>
-            <th className="p-3">Dept.</th>
-            <th className="p-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {courses.map((c) => (
-            <tr key={c.id} className="border-t">
-              <td className="p-3">{c.code}</td>
-              <td className="p-3">{c.title}</td>
-              <td className="p-3">{c.level}</td>
-              <td className="p-3">{c.studentsCount}</td>
-              <td className="p-3">{c.department ?? "-"}</td>
-              <td className="p-3">
-                {/* edit left for later */}
-                <button
-                  onClick={() => deleteCourse(c.id)}
-                  className="text-red-600 hover:underline"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-          {courses.length === 0 && (
+      {/* Scrollable table container */}
+      <div className="max-h-[400px] overflow-y-auto scroll-thin">
+        <table className="w-full overflow-hidden rounded border">
+          <thead className="bg-gray-100 text-left sticky top-0 z-10">
             <tr>
-              <td colSpan={6} className="p-6 text-center italic text-gray-500">
-                No courses yet
-              </td>
+              <th className="p-3">Code</th>
+              <th className="p-3">Title</th>
+              <th className="p-3">Level</th>
+              <th className="p-3">Students</th>
+              <th className="p-3">Dept.</th>
+              <th className="p-3">Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {courses.map((c) => (
+              <tr key={c.id} className="border-t">
+                <td className="p-3">{c.code}</td>
+                <td className="p-3">{c.title}</td>
+                <td className="p-3">{c.level}</td>
+                <td className="p-3">{c.studentsCount}</td>
+                <td className="p-3">{c.department ?? "-"}</td>
+                <td className="p-3">
+                  <button
+                    onClick={() => deleteCourse(c.id)}
+                    className="text-red-600 hover:underline"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {courses.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-6 text-center italic text-gray-500">
+                  No courses yet
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* modal */}
       <Modal open={open} onClose={() => setOpen(false)} title="Add Course">
@@ -140,7 +177,7 @@ function CoursesPage() {
                   setForm({ ...form, code: e.target.value.toUpperCase() })
                 }
                 className="w-full rounded border p-2"
-                placeholder="CSC 301"
+                placeholder="CSC 301"
                 required
               />
             </div>
@@ -226,4 +263,5 @@ function CoursesPage() {
     </div>
   );
 }
+
 export default CoursesPage;

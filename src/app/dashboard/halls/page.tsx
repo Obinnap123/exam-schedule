@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Modal from "@/Components/Modal";
 
 type Hall = {
@@ -17,6 +18,17 @@ function HallPage() {
   ]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", capacity: "" });
+
+
+   /* check for ?add=true in URL to open modal */
+    const searchParams = useSearchParams();
+    const shouldOpenModal = searchParams.get("add") === "true";
+  
+    useEffect(() => {
+      if (shouldOpenModal) {
+        setOpen(true);
+      }
+    }, [shouldOpenModal]);
 
   /* ---------- handlers ---------- */
   const addHall = (e: React.FormEvent) => {
