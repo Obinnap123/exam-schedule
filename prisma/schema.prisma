@@ -1,0 +1,19 @@
+// src/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Course {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  title         String
+  level         Int
+  department    String
+  studentsCount Int
+}

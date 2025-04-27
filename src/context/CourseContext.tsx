@@ -11,11 +11,6 @@ interface ParsedCourse {
   studentsCount: number; // e.g., 50
 }
 
-// Define the structure of a course with an ID
-interface Course extends ParsedCourse {
-  id: number; // Unique identifier for each course
-}
-
 // Create the context
 const CourseContext = createContext<any>(null);
 

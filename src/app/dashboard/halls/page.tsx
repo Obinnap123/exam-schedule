@@ -50,8 +50,8 @@ function HallPage() {
   return (
     <div className="space-y-6">
       {/* header row */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Halls</h1>
+      <div className="flex items-center justify-between ">
+        <h1 className="text-2xl font-bold text-black">Halls</h1>
         <button
           onClick={() => setOpen(true)}
           className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
@@ -61,7 +61,7 @@ function HallPage() {
       </div>
 
       {/* table */}
-      <table className="w-full overflow-hidden rounded border">
+      <table className="w-full overflow-hidden rounded border text-black">
         <thead className="bg-gray-100 text-left">
           <tr>
             <th className="p-3">Name</th>

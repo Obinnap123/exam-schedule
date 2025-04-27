@@ -19,17 +19,7 @@ type Course = {
 /* ---------- page ---------- */
 function CoursesPage() {
   /* state */
-  const [courses, setCourses] = useState<Course[]>([
-    {
-      id: 1,
-      code: "CSC 301",
-      title: "Data Structures",
-      level: 300,
-      studentsCount: 150,
-      department: "Computer Science",
-    },
-  ]);
-
+  const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Omit<Course, "id">>({
     code: "",
@@ -39,22 +29,43 @@ function CoursesPage() {
     department: "",
   });
 
+  const [editingCourseId, setEditingCourseId] = useState<number | null>(null); // Track the course being edited
+
   /* Shared state for parsed courses */
   const { courses: parsedCourses, addCourses } = useCourseContext();
+
+  /* Fetch courses from the API */
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const response = await fetch("/api/courses");
+        if (!response.ok) {
+          throw new Error("Failed to fetch courses.");
+        }
+        const data = await response.json();
+        setCourses(data);
+      } catch (error) {
+        console.error(error);
+        alert("Error fetching courses.");
+      }
+    };
+
+    fetchCourses();
+  }, []);
 
   /* Merge parsed courses with existing courses */
   useEffect(() => {
     if (parsedCourses.length > 0) {
       const newCourses = parsedCourses
         .filter(
-          (parsedCourse: Course) =>
+          (parsedCourse: { code: string; title: string; level: number; studentsCount: number; department?: string }) =>
             !courses.some(
               (existingCourse) =>
                 existingCourse.code.toUpperCase() ===
                 parsedCourse.code.toUpperCase()
             )
         )
-        .map((parsedCourse: Course) => ({
+        .map((parsedCourse: { code: string; title: string; level: number; studentsCount: number; department?: string }) => ({
           ...parsedCourse,
           id: Date.now() + Math.random(), // Generate unique ID
         }));
@@ -74,7 +85,7 @@ function CoursesPage() {
   }, [shouldOpenModal]);
 
   /* helpers */
-  const resetForm = () =>
+  const resetForm = () => {
     setForm({
       code: "",
       title: "",
@@ -82,37 +93,95 @@ function CoursesPage() {
       studentsCount: 0,
       department: "",
     });
+    setEditingCourseId(null); // Reset editing state
+  };
 
   /* handlers */
-  const addCourse = (e: React.FormEvent) => {
+  const addCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.code || !form.title) return;
 
-    const exists = courses.some(
-      (c) => c.code.toUpperCase() === form.code.toUpperCase()
-    );
-    if (exists) {
-      alert("Course code already exists!");
-      return;
-    }
+    try {
+      const exists = courses.some(
+        (c) => c.code.toUpperCase() === form.code.toUpperCase()
+      );
+      if (exists && editingCourseId === null) {
+        alert("Course code already exists!");
+        return;
+      }
 
-    setCourses((prev) => [
-      ...prev,
-      { id: Date.now(), ...form, studentsCount: Number(form.studentsCount) },
-    ]);
-    resetForm();
-    setOpen(false);
+      if (editingCourseId !== null) {
+        // Update existing course via API
+        const response = await fetch(`/api/courses/${editingCourseId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to update course.");
+        }
+        setCourses((prev) =>
+          prev.map((course) =>
+            course.id === editingCourseId
+              ? { id: editingCourseId, ...form, studentsCount: Number(form.studentsCount) }
+              : course
+          )
+        );
+      } else {
+        // Add new course via API
+        const response = await fetch("/api/courses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courses: [{ ...form }] }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to save course.");
+        }
+        const newCourse = await response.json();
+        setCourses((prev) => [...prev, newCourse[0]]);
+      }
+
+      resetForm();
+      setOpen(false);
+    } catch (error) {
+      console.error(error);
+      alert("Error saving/updating course.");
+    }
   };
 
-  const deleteCourse = (id: number) =>
-    setCourses((prev) => prev.filter((c) => c.id !== id));
+  const deleteCourse = async (id: number) => {
+    try {
+      const response = await fetch(`/api/courses/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to delete course.");
+      }
+      setCourses((prev) => prev.filter((c) => c.id !== id));
+    } catch (error) {
+      console.error(error);
+      alert("Error deleting course.");
+    }
+  };
+
+  const startEditing = (course: Course) => {
+    setForm({
+      code: course.code,
+      title: course.title,
+      level: course.level,
+      studentsCount: course.studentsCount,
+      department: course.department || "",
+    });
+    setEditingCourseId(course.id);
+    setOpen(true);
+  };
 
   /* UI */
   return (
     <div className="space-y-6">
       {/* header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Courses</h1>
+      <div className="flex items-center justify-between ">
+        <h1 className="text-2xl font-bold text-black">Courses</h1>
         <button
           onClick={() => setOpen(true)}
           className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
@@ -123,7 +192,7 @@ function CoursesPage() {
 
       {/* Scrollable table container */}
       <div className="max-h-[400px] overflow-y-auto scroll-thin">
-        <table className="w-full overflow-hidden rounded border">
+        <table className="w-full overflow-hidden rounded border text-black">
           <thead className="bg-gray-100 text-left sticky top-0 z-10">
             <tr>
               <th className="p-3">Code</th>
@@ -142,7 +211,13 @@ function CoursesPage() {
                 <td className="p-3">{c.level}</td>
                 <td className="p-3">{c.studentsCount}</td>
                 <td className="p-3">{c.department ?? "-"}</td>
-                <td className="p-3">
+                <td className="p-3 space-x-2">
+                  <button
+                    onClick={() => startEditing(c)}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </button>
                   <button
                     onClick={() => deleteCourse(c.id)}
                     className="text-red-600 hover:underline"
@@ -164,7 +239,7 @@ function CoursesPage() {
       </div>
 
       {/* modal */}
-      <Modal open={open} onClose={() => setOpen(false)} title="Add Course">
+      <Modal open={open} onClose={() => setOpen(false)} title="Add/Edit Course">
         <form onSubmit={addCourse} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>

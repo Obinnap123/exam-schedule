@@ -22,12 +22,29 @@ function CSVUpload({ onFileParsed }: CSVUploadProps) {
         header: true,
         skipEmptyLines: true,
         complete: (result) => {
-          const parsedData = result.data as any[];
+          const parsedData = result.data as Array<{
+            StudentID?: string;
+            CourseCode?: string;
+            CourseTitle?: string;
+            Level?: string;
+            Department?: string;
+          }>;
+
           if (parsedData.length === 0) {
             setFileError('The uploaded CSV file is empty.');
             return;
           }
-          onFileParsed(parsedData);
+
+          // Transform data to match expected structure
+          const validCourses = parsedData.map((row) => ({
+            code: row.CourseCode?.trim(),
+            title: row.CourseTitle?.trim(),
+            level: parseInt(row.Level?.trim() || "0", 10),
+            studentsCount: 0, // Default value since `studentsCount` is missing
+            department: row.Department?.trim(),
+          }));
+
+          onFileParsed(validCourses);
         },
         error: () => {
           setFileError('Error parsing the CSV file.');
@@ -47,7 +64,17 @@ function CSVUpload({ onFileParsed }: CSVUploadProps) {
           setFileError('The uploaded Excel file is empty.');
           return;
         }
-        onFileParsed(parsedData);
+
+        // Transform data to match expected structure
+        const validCourses = parsedData.map((row: any) => ({
+          code: row.CourseCode?.trim(),
+          title: row.CourseTitle?.trim(),
+          level: parseInt(row.Level?.trim() || "0", 10),
+          studentsCount: 0, // Default value since `studentsCount` is missing
+          department: row.Department?.trim(),
+        }));
+
+        onFileParsed(validCourses);
       };
       reader.onerror = () => {
         setFileError('Error reading the Excel file.');
@@ -60,14 +87,14 @@ function CSVUpload({ onFileParsed }: CSVUploadProps) {
 
   return (
     <div>
-      <label className="block text-sm font-medium mb-2">
+      <label className="block text-sm font-medium mb-2 text-black">
         Upload Student Course Registration File (CSV/Excel)
       </label>
       <input
         type="file"
         accept=".csv,.xls,.xlsx"
         onChange={handleFileUpload}
-        className="border p-2 rounded w-full"
+        className="border p-2 rounded w-full text-black"
       />
       {fileError && <p className="text-red-500 mt-2">{fileError}</p>}
     </div>

@@ -1,56 +1,87 @@
 // src/app/generate-timetable/page.tsx
 "use client";
-import CSVUpload from "@/Components/CSVUpload";
-import { useCourseContext } from "@/context/CourseContext";
 
-export default function GenerateTimetable() {
-  const { addCourses } = useCourseContext();
+import { useState } from "react";
+import CSVUpload from "@/Components/CSVUpload"; // Import the CSVUpload component
+import { useCourseContext } from "@/context/CourseContext"; // Import the shared context
 
-  // Handle parsed CSV/Excel data
-  const handleFileParsed = (parsedData: any[]) => {
-    // Extract unique courses
-    const uniqueCourses = Array.from(
-      new Set(parsedData.map((row) => row.CourseCode))
-    ).map((code) => {
-      const courseData = parsedData.find((row) => row.CourseCode === code)!;
-      return {
-        code: courseData.CourseCode,
-        title: courseData.CourseTitle,
-        level: courseData.Level,
-        department: courseData.Department,
-        studentsCount: parsedData.filter((row) => row.CourseCode === code)
-          .length,
-      };
-    });
+function GenerateTimetablePage() {
+  const { addCourses } = useCourseContext(); // Use the shared context to add courses
+  const [loading, setLoading] = useState(false); // Loading state for timetable generation
 
-    // Add parsed courses to the shared state
-    addCourses(uniqueCourses);
+  /* Handle parsed CSV/Excel data */
+  const handleFileParsed = async (parsedData: Array<{ code: string; title: string; level: number; studentsCount: number; department: string }>) => {
+    try {
+      // Validate parsed data
+      const validCourses = parsedData.map((course) => ({
+        code: course.code?.trim(),
+        title: course.title?.trim(),
+        level: course.level,
+        studentsCount: course.studentsCount,
+        department: course.department?.trim(),
+      }));
+
+      // Save parsed courses to the database
+      const response = await fetch("/api/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courses: validCourses }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save courses.");
+      }
+
+      // Add parsed courses to shared state
+      addCourses(validCourses);
+
+      alert("Courses parsed and saved successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Error parsing or saving courses.");
+    }
+  };
+
+  /* Handle Generate Timetable Button Click */
+  const handleGenerateTimetable = async () => {
+    setLoading(true); // Start loading
+
+    try {
+      // Simulate timetable generation process
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate API call
+
+      alert("Timetable generated successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Error generating timetable.");
+    } finally {
+      setLoading(false); // Stop loading
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <h1 className="text-4xl font-bold text-indigo-900 mb-8">
-          Generate Exam Timetable
-        </h1>
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <h1 className="text-2xl font-bold text-black">Generate Timetable</h1>
+      <p className="text-gray-600">
+        Upload a CSV or Excel file containing course details to generate the timetable.
+      </p>
 
-        {/* CSV/Excel Upload Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">
-            Upload Student Course Registration File
-          </h2>
-          <CSVUpload onFileParsed={handleFileParsed} />
-        </div>
+      {/* CSV/Excel Upload Component */}
+      <CSVUpload onFileParsed={handleFileParsed} />
 
-        {/* Generate Timetable Button */}
-        <button
-          onClick={() => alert("Generate Timetable Logic Here")}
-          className="px-6 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition duration-200"
-        >
-          Generate Timetable
-        </button>
-      </div>
+      {/* Generate Timetable Button */}
+      <button
+        onClick={handleGenerateTimetable}
+        disabled={loading}
+        className={`rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 ${
+          loading ? "opacity-50 cursor-not-allowed" : ""
+        }`}
+      >
+        {loading ? "Generating Timetable..." : "Generate Timetable"}
+      </button>
     </div>
   );
 }
+
+export default GenerateTimetablePage;

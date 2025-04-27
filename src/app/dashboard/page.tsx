@@ -63,7 +63,7 @@ function DashboardHome() {
 
       {/* quick actions */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Quick actions</h2>
+        <h2 className="text-lg font-semibold text-black">Quick actions</h2>
         <div className="flex flex-wrap gap-4">
           <Link
             href="/dashboard/halls?add=true"
