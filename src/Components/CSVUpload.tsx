@@ -1,10 +1,18 @@
 // src/components/CSVUpload.tsx
 import { useState } from 'react';
-import Papa from 'papaparse'; // For CSV parsing
-import * as XLSX from 'xlsx'; // For Excel parsing
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
+
+interface CourseRow {
+  code: string;
+  title: string;
+  level: number;
+  studentsCount: number;
+  department: string;
+}
 
 interface CSVUploadProps {
-  onFileParsed: (data: any[]) => void; // Callback to handle parsed data
+  onFileParsed: (data: CourseRow[]) => void;
 }
 
 function CSVUpload({ onFileParsed }: CSVUploadProps) {
@@ -17,30 +25,22 @@ function CSVUpload({ onFileParsed }: CSVUploadProps) {
     const fileType = file.name.split('.').pop()?.toLowerCase();
 
     if (fileType === 'csv') {
-      // Parse CSV file
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
         complete: (result) => {
-          const parsedData = result.data as Array<{
-            StudentID?: string;
-            CourseCode?: string;
-            CourseTitle?: string;
-            Level?: string;
-            Department?: string;
-          }>;
+          const parsedData = result.data as Array<Record<string, string>>;
 
           if (parsedData.length === 0) {
             setFileError('The uploaded CSV file is empty.');
             return;
           }
 
-          // Transform data to match expected structure
-          const validCourses = parsedData.map((row) => ({
+          const validCourses: CourseRow[] = parsedData.map((row) => ({
             code: row.CourseCode?.trim(),
             title: row.CourseTitle?.trim(),
             level: parseInt(row.Level?.trim() || "0", 10),
-            studentsCount: 0, // Default value since `studentsCount` is missing
+            studentsCount: parseInt(row.StudentsCount?.trim() || "0", 10),
             department: row.Department?.trim(),
           }));
 
@@ -51,26 +51,24 @@ function CSVUpload({ onFileParsed }: CSVUploadProps) {
         },
       });
     } else if (['xls', 'xlsx'].includes(fileType || '')) {
-      // Parse Excel file
       const reader = new FileReader();
       reader.onload = (e) => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const parsedData = XLSX.utils.sheet_to_json(worksheet);
+        const parsedData = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet);
 
         if (parsedData.length === 0) {
           setFileError('The uploaded Excel file is empty.');
           return;
         }
 
-        // Transform data to match expected structure
-        const validCourses = parsedData.map((row: any) => ({
+        const validCourses: CourseRow[] = parsedData.map((row) => ({
           code: row.CourseCode?.trim(),
           title: row.CourseTitle?.trim(),
           level: parseInt(row.Level?.trim() || "0", 10),
-          studentsCount: 0, // Default value since `studentsCount` is missing
+          studentsCount: parseInt(row.StudentsCount?.trim() || "0", 10),
           department: row.Department?.trim(),
         }));
 

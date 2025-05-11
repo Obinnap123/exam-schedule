@@ -233,7 +233,7 @@ function CoursesPage() {
             {courses.length === 0 && (
               <tr>
                 <td colSpan={6} className="p-6 text-center italic text-gray-500">
-                  No courses yet
+                  please wait...
                 </td>
               </tr>
             )}

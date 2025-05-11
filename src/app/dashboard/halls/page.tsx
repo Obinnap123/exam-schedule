@@ -169,7 +169,7 @@ function HallPage() {
             {halls.length === 0 && (
               <tr>
                 <td colSpan={3} className="p-6 text-center italic text-gray-500">
-                  No halls yet
+                  please wait...
                 </td>
               </tr>
             )}
