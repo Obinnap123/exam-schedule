@@ -17,3 +17,9 @@ model Course {
   department    String
   studentsCount Int
 }
+
+model Hall {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  capacity Int
+}

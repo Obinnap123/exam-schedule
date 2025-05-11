@@ -59,33 +59,33 @@ export async function GET() {
 }
 
 // DELETE: Delete a course by ID
-export async function DELETE(request: Request) {
-  try {
-    const url = new URL(request.url);
-    const id = parseInt(url.pathname.split('/').pop() || '', 10);
+// export async function DELETE(request: Request) {
+//   try {
+//     const url = new URL(request.url);
+//     const id = parseInt(url.pathname.split('/').pop() || '', 10);
 
-    // Validate input
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Invalid course ID.' },
-        { status: 400 }
-      );
-    }
+//     // Validate input
+//     if (!id) {
+//       return NextResponse.json(
+//         { error: 'Invalid course ID.' },
+//         { status: 400 }
+//       );
+//     }
 
-    // Delete the course
-    await prisma.course.delete({
-      where: { id },
-    });
+//     // Delete the course
+//     await prisma.course.delete({
+//       where: { id },
+//     });
 
-    return NextResponse.json(
-      { message: 'Course deleted successfully!' },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { error: 'Failed to delete course.' },
-      { status: 500 }
-    );
-  }
-}
+//     return NextResponse.json(
+//       { message: 'Course deleted successfully!' },
+//       { status: 200 }
+//     );
+//   } catch (error) {
+//     console.error(error);
+//     return NextResponse.json(
+//       { error: 'Failed to delete course.' },
+//       { status: 500 }
+//     );
+//   }
+// }

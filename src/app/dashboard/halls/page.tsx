@@ -11,93 +11,175 @@ type Hall = {
 };
 
 function HallPage() {
-  /* ---------- state ---------- */
-  const [halls, setHalls] = useState<Hall[]>([
-    { id: 1, name: "Main Hall", capacity: 120 },
-    { id: 2, name: "Room A", capacity: 60 },
-  ]);
+  /* ---------- State ---------- */
+  const [halls, setHalls] = useState<Hall[]>([]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", capacity: "" });
+  const [form, setForm] = useState({ id: 0, name: "", capacity: "" });
+  const [isEditing, setIsEditing] = useState(false); // Track edit mode
 
+  /* ---------- Query Parameters ---------- */
+  const searchParams = useSearchParams();
+  const shouldOpenModal = searchParams.get("add") === "true";
 
-   /* check for ?add=true in URL to open modal */
-    const searchParams = useSearchParams();
-    const shouldOpenModal = searchParams.get("add") === "true";
-  
-    useEffect(() => {
-      if (shouldOpenModal) {
-        setOpen(true);
+  useEffect(() => {
+    if (shouldOpenModal) {
+      setOpen(true);
+    }
+  }, [shouldOpenModal]);
+
+  /* ---------- Fetch Halls from Backend ---------- */
+  useEffect(() => {
+    const fetchHalls = async () => {
+      try {
+        const response = await fetch("/api/halls");
+        if (!response.ok) {
+          throw new Error("Failed to fetch halls.");
+        }
+        const data = await response.json();
+        setHalls(data); // Update state with fetched halls
+      } catch (error) {
+        console.error(error);
+        alert("Error fetching halls.");
       }
-    }, [shouldOpenModal]);
+    };
 
-  /* ---------- handlers ---------- */
-  const addHall = (e: React.FormEvent) => {
+    fetchHalls();
+  }, []);
+
+  /* ---------- Handlers ---------- */
+
+  // Add or Edit a hall
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.capacity) return;
 
-    setHalls((prev) => [
-      ...prev,
-      { id: Date.now(), name: form.name, capacity: Number(form.capacity) },
-    ]);
-    setForm({ name: "", capacity: "" });
-    setOpen(false);
+    try {
+      const url = isEditing ? `/api/halls/${form.id}` : "/api/halls";
+      const method = isEditing ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          capacity: parseInt(form.capacity, 10),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(isEditing ? "Failed to update hall." : "Failed to create hall.");
+      }
+
+      const updatedOrNewHall = await response.json();
+
+      if (isEditing) {
+        setHalls((prev) =>
+          prev.map((hall) => (hall.id === updatedOrNewHall.id ? updatedOrNewHall : hall))
+        );
+      } else {
+        setHalls((prev) => [...prev, updatedOrNewHall]);
+      }
+
+      setForm({ id: 0, name: "", capacity: "" }); // Reset form
+      setOpen(false); // Close modal
+      setIsEditing(false); // Exit edit mode
+    } catch (error) {
+      console.error(error);
+      alert(isEditing ? "Error updating hall." : "Error adding hall.");
+    }
   };
 
-  const deleteHall = (id: number) =>
-    setHalls((prev) => prev.filter((h) => h.id !== id));
+  // Delete a hall
+  const deleteHall = async (id: number) => {
+    try {
+      const response = await fetch(`/api/halls/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete hall.");
+      }
+
+      setHalls((prev) => prev.filter((hall) => hall.id !== id)); // Remove hall from state
+    } catch (error) {
+      console.error(error);
+      alert("Error deleting hall.");
+    }
+  };
+
+  // Open modal for editing
+  const editHall = (hall: Hall) => {
+    setForm({ id: hall.id, name: hall.name, capacity: String(hall.capacity) });
+    setIsEditing(true);
+    setOpen(true);
+  };
 
   /* ---------- UI ---------- */
   return (
     <div className="space-y-6">
-      {/* header row */}
-      <div className="flex items-center justify-between ">
+      {/* Header Row */}
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-black">Halls</h1>
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setIsEditing(false);
+            setForm({ id: 0, name: "", capacity: "" });
+            setOpen(true);
+          }}
           className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
         >
-          + Add Hall
+          + Add Hall
         </button>
       </div>
 
-      {/* table */}
-      <table className="w-full overflow-hidden rounded border text-black">
-        <thead className="bg-gray-100 text-left">
-          <tr>
-            <th className="p-3">Name</th>
-            <th className="p-3">Capacity</th>
-            <th className="p-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {halls.map((hall) => (
-            <tr key={hall.id} className="border-t">
-              <td className="p-3">{hall.name}</td>
-              <td className="p-3">{hall.capacity}</td>
-              <td className="p-3">
-                {/* edit left for later */}
-                <button
-                  onClick={() => deleteHall(hall.id)}
-                  className="text-red-600 hover:underline"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-          {halls.length === 0 && (
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm text-black">
+          <thead className="bg-gray-100">
             <tr>
-              <td colSpan={3} className="p-6 text-center italic text-gray-500">
-                No halls yet
-              </td>
+              <th className="p-3">Name</th>
+              <th className="p-3">Capacity</th>
+              <th className="p-3">Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {halls.map((hall, index) => (
+              <tr
+                key={hall.id}
+                className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
+              >
+                <td className="p-3">{hall.name}</td>
+                <td className="p-3">{hall.capacity}</td>
+                <td className="p-3 space-x-2">
+                  <button
+                    onClick={() => editHall(hall)}
+                    className="text-blue-600 hover:underline"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteHall(hall.id)}
+                    className="text-red-600 hover:underline"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {halls.length === 0 && (
+              <tr>
+                <td colSpan={3} className="p-6 text-center italic text-gray-500">
+                  No halls yet
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* modal */}
-      <Modal open={open} onClose={() => setOpen(false)} title="Add Hall">
-        <form onSubmit={addHall} className="space-y-4">
+      {/* Modal */}
+      <Modal open={open} onClose={() => setOpen(false)} title={isEditing ? "Edit Hall" : "Add Hall"}>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">Hall Name</label>
             <input
@@ -139,4 +221,5 @@ function HallPage() {
     </div>
   );
 }
+
 export default HallPage;

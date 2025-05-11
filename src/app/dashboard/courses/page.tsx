@@ -1,12 +1,10 @@
-// src/app/courses/page.tsx
 "use client";
-
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Modal from "@/Components/Modal";
 import { useCourseContext } from "../../../context/CourseContext"; // Import the shared context
 
-/* ---------- types ---------- */
+/* ---------- Types ---------- */
 type Course = {
   id: number;
   code: string;
@@ -16,9 +14,9 @@ type Course = {
   department?: string;
 };
 
-/* ---------- page ---------- */
+/* ---------- Page Component ---------- */
 function CoursesPage() {
-  /* state */
+  /* ---------- State ---------- */
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Omit<Course, "id">>({
@@ -28,7 +26,6 @@ function CoursesPage() {
     studentsCount: 0,
     department: "",
   });
-
   const [editingCourseId, setEditingCourseId] = useState<number | null>(null); // Track the course being edited
 
   /* Shared state for parsed courses */
@@ -49,7 +46,6 @@ function CoursesPage() {
         alert("Error fetching courses.");
       }
     };
-
     fetchCourses();
   }, []);
 
@@ -69,22 +65,20 @@ function CoursesPage() {
           ...parsedCourse,
           id: Date.now() + Math.random(), // Generate unique ID
         }));
-
       setCourses((prevCourses) => [...prevCourses, ...newCourses]);
     }
   }, [parsedCourses]);
 
-  /* check for ?add=true in URL to open modal */
+  /* Check for ?add=true in URL to open modal */
   const searchParams = useSearchParams();
   const shouldOpenModal = searchParams.get("add") === "true";
-
   useEffect(() => {
     if (shouldOpenModal) {
       setOpen(true);
     }
   }, [shouldOpenModal]);
 
-  /* helpers */
+  /* Helpers */
   const resetForm = () => {
     setForm({
       code: "",
@@ -96,7 +90,7 @@ function CoursesPage() {
     setEditingCourseId(null); // Reset editing state
   };
 
-  /* handlers */
+  /* Handlers */
   const addCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.code || !form.title) return;
@@ -117,9 +111,11 @@ function CoursesPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),
         });
+
         if (!response.ok) {
           throw new Error("Failed to update course.");
         }
+
         setCourses((prev) =>
           prev.map((course) =>
             course.id === editingCourseId
@@ -134,9 +130,11 @@ function CoursesPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ courses: [{ ...form }] }),
         });
+
         if (!response.ok) {
           throw new Error("Failed to save course.");
         }
+
         const newCourse = await response.json();
         setCourses((prev) => [...prev, newCourse[0]]);
       }
@@ -154,9 +152,11 @@ function CoursesPage() {
       const response = await fetch(`/api/courses/${id}`, {
         method: "DELETE",
       });
+
       if (!response.ok) {
         throw new Error("Failed to delete course.");
       }
+
       setCourses((prev) => prev.filter((c) => c.id !== id));
     } catch (error) {
       console.error(error);
@@ -179,8 +179,8 @@ function CoursesPage() {
   /* UI */
   return (
     <div className="space-y-6">
-      {/* header */}
-      <div className="flex items-center justify-between ">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-black">Courses</h1>
         <button
           onClick={() => setOpen(true)}
@@ -190,10 +190,10 @@ function CoursesPage() {
         </button>
       </div>
 
-      {/* Scrollable table container */}
+      {/* Scrollable Table Container */}
       <div className="max-h-[400px] overflow-y-auto scroll-thin">
-        <table className="w-full overflow-hidden rounded border text-black">
-          <thead className="bg-gray-100 text-left sticky top-0 z-10">
+        <table className="w-full border-collapse text-left text-sm text-black">
+          <thead className="bg-gray-100 sticky top-0 z-10">
             <tr>
               <th className="p-3">Code</th>
               <th className="p-3">Title</th>
@@ -204,8 +204,11 @@ function CoursesPage() {
             </tr>
           </thead>
           <tbody>
-            {courses.map((c) => (
-              <tr key={c.id} className="border-t">
+            {courses.map((c, index) => (
+              <tr
+                key={c.id}
+                className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
+              >
                 <td className="p-3">{c.code}</td>
                 <td className="p-3">{c.title}</td>
                 <td className="p-3">{c.level}</td>
@@ -238,14 +241,12 @@ function CoursesPage() {
         </table>
       </div>
 
-      {/* modal */}
+      {/* Modal */}
       <Modal open={open} onClose={() => setOpen(false)} title="Add/Edit Course">
         <form onSubmit={addCourse} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">
-                Course Code
-              </label>
+              <label className="mb-1 block text-sm font-medium">Course Code</label>
               <input
                 value={form.code}
                 onChange={(e) =>
@@ -273,11 +274,8 @@ function CoursesPage() {
               </select>
             </div>
           </div>
-
           <div>
-            <label className="mb-1 block text-sm font-medium">
-              Course Title
-            </label>
+            <label className="mb-1 block text-sm font-medium">Course Title</label>
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -286,7 +284,6 @@ function CoursesPage() {
               required
             />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-sm font-medium">
@@ -304,9 +301,7 @@ function CoursesPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">
-                Department
-              </label>
+              <label className="mb-1 block text-sm font-medium">Department</label>
               <input
                 value={form.department}
                 onChange={(e) =>
@@ -317,7 +312,6 @@ function CoursesPage() {
               />
             </div>
           </div>
-
           <div className="flex justify-end space-x-2">
             <button
               type="button"
