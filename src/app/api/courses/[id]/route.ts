@@ -1,12 +1,12 @@
 // src/app/api/courses/[id]/route.ts
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 // DELETE: Delete a course by ID
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } })  {
   try {
     const { id } = params;
     const parsedId = parseInt(id, 10);
@@ -38,7 +38,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 }
 
 // PATCH: Update a course by ID
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { id } = params;
     const parsedId = parseInt(id, 10);
