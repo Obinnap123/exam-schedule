@@ -5,44 +5,34 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export async function DELETE(
-  _: NextRequest,
-  context: { params: { id: string } }
-) {
+type Context = {
+  params: {
+    id: string;
+  };
+};
+
+export async function DELETE(request: NextRequest, context: Context) {
   const { id } = context.params;
   const parsedId = parseInt(id, 10);
 
-  if (!parsedId) {
+  if (isNaN(parsedId)) {
     return NextResponse.json({ error: "Invalid course ID." }, { status: 400 });
   }
 
   try {
-    await prisma.course.delete({
-      where: { id: parsedId },
-    });
-
-    return NextResponse.json(
-      { message: "Course deleted successfully!" },
-      { status: 200 }
-    );
+    await prisma.course.delete({ where: { id: parsedId } });
+    return NextResponse.json({ message: "Course deleted successfully!" }, { status: 200 });
   } catch (error) {
     console.error(error);
-    return NextResponse.json(
-      { error: "Failed to delete course." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete course." }, { status: 500 });
   }
 }
 
-// PATCH: Update a course by ID
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest, context: Context) {
   const { id } = context.params;
   const parsedId = parseInt(id, 10);
 
-  if (!parsedId) {
+  if (isNaN(parsedId)) {
     return NextResponse.json({ error: "Invalid course ID." }, { status: 400 });
   }
 
