@@ -1,9 +1,9 @@
 // src/context/CourseContext.tsx
 "use client";
-import { createContext, useState, useContext } from "react";
+import { createContext, useState, useContext, ReactNode } from "react";
 
 // Define the structure of a parsed course
-interface ParsedCourse {
+export interface ParsedCourse {
   code: string; // e.g., MTH102
   title: string; // e.g., Mathematics II
   level: number; // e.g., 100
@@ -11,11 +11,17 @@ interface ParsedCourse {
   studentsCount: number; // e.g., 50
 }
 
-// Create the context
-const CourseContext = createContext<any>(null);
+// Define the context type
+interface CourseContextType {
+  courses: ParsedCourse[];
+  addCourses: (newCourses: ParsedCourse[]) => void;
+}
+
+// Create the context with default value as undefined initially
+const CourseContext = createContext<CourseContextType | undefined>(undefined);
 
 // Provider component to wrap the app
-export const CourseProvider = ({ children }: { children: React.ReactNode }) => {
+export const CourseProvider = ({ children }: { children: ReactNode }) => {
   const [courses, setCourses] = useState<ParsedCourse[]>([]); // Store parsed courses here
 
   // Function to add new courses

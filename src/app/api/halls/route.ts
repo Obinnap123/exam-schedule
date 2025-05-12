@@ -36,9 +36,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(hall, { status: 201 });
-  } catch (error: any) {
-    console.error("Error details:", error.message);
-
+  } catch (error: unknown) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
@@ -47,6 +45,11 @@ export async function POST(request: Request) {
         { error: "A hall with this name already exists." },
         { status: 409 }
       );
+    }
+    if (error instanceof Error) {
+      console.error("Error details:", error.message);
+    } else {
+      console.error("Unexpected error details:", error);
     }
 
     return NextResponse.json(
@@ -73,4 +76,3 @@ export async function GET() {
     await prisma.$disconnect();
   }
 }
-

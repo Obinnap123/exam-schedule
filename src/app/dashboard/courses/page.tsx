@@ -13,6 +13,7 @@ type Course = {
   studentsCount: number;
   department?: string;
 };
+type ParsedCourse = Omit<Course, "id">;
 
 /* ---------- Page Component ---------- */
 function CoursesPage() {
@@ -54,18 +55,21 @@ function CoursesPage() {
     if (parsedCourses.length > 0) {
       const newCourses = parsedCourses
         .filter(
-          (parsedCourse: { code: string; title: string; level: number; studentsCount: number; department?: string }) =>
+          (parsedCourse: ParsedCourse) =>
             !courses.some(
               (existingCourse) =>
                 existingCourse.code.toUpperCase() ===
                 parsedCourse.code.toUpperCase()
             )
         )
-        .map((parsedCourse: { code: string; title: string; level: number; studentsCount: number; department?: string }) => ({
+        .map((parsedCourse) => ({
           ...parsedCourse,
           id: Date.now() + Math.random(), // Generate unique ID
         }));
-      setCourses((prevCourses) => [...prevCourses, ...newCourses]);
+
+      if (newCourses.length > 0) {
+        setCourses((prevCourses) => [...prevCourses, ...newCourses]);
+      }
     }
   }, [parsedCourses]);
 
@@ -119,7 +123,11 @@ function CoursesPage() {
         setCourses((prev) =>
           prev.map((course) =>
             course.id === editingCourseId
-              ? { id: editingCourseId, ...form, studentsCount: Number(form.studentsCount) }
+              ? {
+                  id: editingCourseId,
+                  ...form,
+                  studentsCount: Number(form.studentsCount),
+                }
               : course
           )
         );
@@ -137,6 +145,7 @@ function CoursesPage() {
 
         const newCourse = await response.json();
         setCourses((prev) => [...prev, newCourse[0]]);
+        addCourses([newCourse[0]]); // ✅ Update shared context
       }
 
       resetForm();
@@ -232,7 +241,10 @@ function CoursesPage() {
             ))}
             {courses.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center italic text-gray-500">
+                <td
+                  colSpan={6}
+                  className="p-6 text-center italic text-gray-500"
+                >
                   please wait...
                 </td>
               </tr>
@@ -246,7 +258,9 @@ function CoursesPage() {
         <form onSubmit={addCourse} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">Course Code</label>
+              <label className="mb-1 block text-sm font-medium">
+                Course Code
+              </label>
               <input
                 value={form.code}
                 onChange={(e) =>
@@ -275,7 +289,9 @@ function CoursesPage() {
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Course Title</label>
+            <label className="mb-1 block text-sm font-medium">
+              Course Title
+            </label>
             <input
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -301,7 +317,9 @@ function CoursesPage() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">Department</label>
+              <label className="mb-1 block text-sm font-medium">
+                Department
+              </label>
               <input
                 value={form.department}
                 onChange={(e) =>

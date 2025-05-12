@@ -13,13 +13,11 @@ export async function DELETE(
   try {
     const { id } = params;
 
-    // Ensure the ID is a valid number
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       return NextResponse.json({ error: "Invalid hall ID." }, { status: 400 });
     }
 
-    // Attempt to delete the hall
     const deletedHall = await prisma.hall.delete({
       where: { id: parsedId },
     });
@@ -32,14 +30,15 @@ export async function DELETE(
       { message: "Hall deleted successfully." },
       { status: 200 }
     );
-  } catch (error: any) {
-    console.error("Error details:", error.message);
-
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
+  } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "Hall not found." }, { status: 404 });
+    }
+
+    if (error instanceof Error) {
+      console.error("Error details:", error.message);
+    } else {
+      console.error("Unknown error:", error);
     }
 
     return NextResponse.json(
@@ -60,13 +59,11 @@ export async function PATCH(
     const { id } = params;
     const body = await request.json();
 
-    // Ensure the ID is a valid number
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       return NextResponse.json({ error: "Invalid hall ID." }, { status: 400 });
     }
 
-    // Validate input (at least one field must be provided)
     const { name, capacity } = body;
     if (!name && !capacity) {
       return NextResponse.json(
@@ -75,7 +72,6 @@ export async function PATCH(
       );
     }
 
-    // Prepare data for update
     const updateData: { name?: string; capacity?: number } = {};
     if (name) updateData.name = name;
     if (capacity !== undefined) {
@@ -89,7 +85,6 @@ export async function PATCH(
       updateData.capacity = parsedCapacity;
     }
 
-    // Attempt to update the hall
     const updatedHall = await prisma.hall.update({
       where: { id: parsedId },
       data: updateData,
@@ -100,14 +95,15 @@ export async function PATCH(
     }
 
     return NextResponse.json(updatedHall, { status: 200 });
-  } catch (error: any) {
-    console.error("Error details:", error.message);
-
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
+  } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "Hall not found." }, { status: 404 });
+    }
+
+    if (error instanceof Error) {
+      console.error("Error details:", error.message);
+    } else {
+      console.error("Unknown error:", error);
     }
 
     return NextResponse.json(
