@@ -1,5 +1,5 @@
 // src/app/api/courses/route.ts
-
+// import { getAllCourses } from "@/lib/db/courses";
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 

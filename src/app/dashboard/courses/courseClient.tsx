@@ -192,7 +192,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="max-h-[400px] overflow-x-auto scroll-thin">
         <table className="w-full border-collapse text-left text-sm text-black">
           <thead className="bg-gray-100">
             <tr>
