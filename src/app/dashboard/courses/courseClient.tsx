@@ -174,7 +174,6 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
     }
   };
 
-  // ✨ Your UI code remains the same here (table, modal, etc.)
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -245,15 +244,101 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
         </table>
       </div>
 
-      {/* Modal */}
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title={editingCourseId !== null ? "Edit Course" : "Add Course"}
-      >
+      {/* Modal with Form */}
+      <Modal open={open} onClose={() => setOpen(false)} title="Add Course">
         <form onSubmit={addCourse} className="space-y-4">
-          {/* Code, Title, Level, Department, StudentsCount Inputs */}
-          {/* same structure as you had before */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Course Code
+              </label>
+              <input
+                value={form.code}
+                onChange={(e) =>
+                  setForm({ ...form, code: e.target.value.toUpperCase() })
+                }
+                className="w-full rounded border p-2"
+                placeholder="CSC 301"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Level</label>
+              <select
+                value={form.level}
+                onChange={(e) =>
+                  setForm({ ...form, level: Number(e.target.value) })
+                }
+                className="w-full rounded border p-2"
+              >
+                {[100, 200, 300, 400, 500].map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {lvl}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Course Title
+            </label>
+            <input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="w-full rounded border p-2"
+              placeholder="Data Structures"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Number of Students
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={form.studentsCount}
+                onChange={(e) =>
+                  setForm({ ...form, studentsCount: Number(e.target.value) })
+                }
+                className="w-full rounded border p-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Department
+              </label>
+              <input
+                value={form.department}
+                onChange={(e) =>
+                  setForm({ ...form, department: e.target.value })
+                }
+                className="w-full rounded border p-2"
+                placeholder="Computer Science"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded border px-4 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              Save
+            </button>
+          </div>
         </form>
       </Modal>
     </div>
