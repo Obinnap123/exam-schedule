@@ -10,9 +10,13 @@ type Hall = {
   capacity: number;
 };
 
-function HallPage() {
+interface HallPageClientProps {
+  initialHalls: Hall[];
+}
+
+function HallPageClient({ initialHalls }: HallPageClientProps) {
   /* ---------- State ---------- */
-  const [halls, setHalls] = useState<Hall[]>([]);
+  const [halls, setHalls] = useState<Hall[]>(initialHalls);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ id: 0, name: "", capacity: "" });
   const [isEditing, setIsEditing] = useState(false); // Track edit mode
@@ -27,9 +31,9 @@ function HallPage() {
     }
   }, [shouldOpenModal]);
 
-  /* ---------- Fetch Halls from Backend ---------- */
+  /* ---------- Refresh Halls from Backend ---------- */
   useEffect(() => {
-    const fetchHalls = async () => {
+    const refreshHalls = async () => {
       try {
         const response = await fetch("/api/halls");
         if (!response.ok) {
@@ -39,12 +43,15 @@ function HallPage() {
         setHalls(data); // Update state with fetched halls
       } catch (error) {
         console.error(error);
-        alert("Error fetching halls.");
+        // Don't alert here, just log the error
       }
     };
 
-    fetchHalls();
-  }, []);
+    // Only refresh if we didn't get initial data
+    if (initialHalls.length === 0) {
+      refreshHalls();
+    }
+  }, [initialHalls.length]);
 
   /* ---------- Handlers ---------- */
 
@@ -67,14 +74,18 @@ function HallPage() {
       });
 
       if (!response.ok) {
-        throw new Error(isEditing ? "Failed to update hall." : "Failed to create hall.");
+        throw new Error(
+          isEditing ? "Failed to update hall." : "Failed to create hall."
+        );
       }
 
       const updatedOrNewHall = await response.json();
 
       if (isEditing) {
         setHalls((prev) =>
-          prev.map((hall) => (hall.id === updatedOrNewHall.id ? updatedOrNewHall : hall))
+          prev.map((hall) =>
+            hall.id === updatedOrNewHall.id ? updatedOrNewHall : hall
+          )
         );
       } else {
         setHalls((prev) => [...prev, updatedOrNewHall]);
@@ -168,8 +179,11 @@ function HallPage() {
             ))}
             {halls.length === 0 && (
               <tr>
-                <td colSpan={3} className="p-6 text-center italic text-gray-500">
-                  please wait...
+                <td
+                  colSpan={3}
+                  className="p-6 text-center italic text-gray-500"
+                >
+                  No halls found
                 </td>
               </tr>
             )}
@@ -178,7 +192,11 @@ function HallPage() {
       </div>
 
       {/* Modal */}
-      <Modal open={open} onClose={() => setOpen(false)} title={isEditing ? "Edit Hall" : "Add Hall"}>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={isEditing ? "Edit Hall" : "Add Hall"}
+      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">Hall Name</label>
@@ -222,4 +240,4 @@ function HallPage() {
   );
 }
 
-export default HallPage;
+export default HallPageClient;

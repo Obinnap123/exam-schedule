@@ -1,18 +1,10 @@
-// src/app/api/courses/[id]/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import prisma from "@/lib/prisma";
 
-const prisma = new PrismaClient();
-
-type Context = {
-  params: {
-    id: string;
-  };
-};
-
-export async function DELETE(request: NextRequest, context: Context) {
-  const { id } = context.params;
+export async function DELETE(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  // Await the params
+  const params = await context.params;
+  const { id } = params;
   const parsedId = parseInt(id, 10);
 
   if (isNaN(parsedId)) {
@@ -28,8 +20,10 @@ export async function DELETE(request: NextRequest, context: Context) {
   }
 }
 
-export async function PATCH(request: NextRequest, context: Context) {
-  const { id } = context.params;
+export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  // Await the params
+  const params = await context.params;
+  const { id } = params;
   const parsedId = parseInt(id, 10);
 
   if (isNaN(parsedId)) {

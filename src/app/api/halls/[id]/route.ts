@@ -1,16 +1,17 @@
 // src/app/api/halls/[id]/route.ts
 
-import { NextResponse } from "next/server";
-import { PrismaClient, Prisma } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 // DELETE: Delete a hall by ID
 export async function DELETE(
-  _: Request,
-  { params }: { params: { id: string } }
+  _: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params
+    const params = await context.params;
     const { id } = params;
 
     const parsedId = parseInt(id, 10);
@@ -31,7 +32,10 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error: unknown) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    if (
+      error instanceof PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
       return NextResponse.json({ error: "Hall not found." }, { status: 404 });
     }
 
@@ -52,10 +56,12 @@ export async function DELETE(
 
 // PATCH: Update a hall by ID
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params
+    const params = await context.params;
     const { id } = params;
     const body = await request.json();
 
@@ -96,7 +102,10 @@ export async function PATCH(
 
     return NextResponse.json(updatedHall, { status: 200 });
   } catch (error: unknown) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    if (
+      error instanceof PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
       return NextResponse.json({ error: "Hall not found." }, { status: 404 });
     }
 
