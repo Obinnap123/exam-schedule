@@ -23,3 +23,11 @@ model Hall {
   name     String   @unique
   capacity Int
 }
+
+model Supervisor {
+  id       String  @id @default(cuid())
+  fullName String
+  email    String  @unique
+  phone    String?
+  department String?
+}

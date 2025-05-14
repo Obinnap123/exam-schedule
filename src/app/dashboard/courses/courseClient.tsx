@@ -13,6 +13,7 @@ type Course = {
   studentsCount: number;
   department?: string;
 };
+
 type ParsedCourse = Omit<Course, "id">;
 
 interface CoursePageClientProps {
@@ -32,7 +33,6 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
   const [editingCourseId, setEditingCourseId] = useState<number | null>(null);
 
   const { courses: parsedCourses, addCourses } = useCourseContext();
-
   const searchParams = useSearchParams();
   const shouldOpenModal = searchParams.get("add") === "true";
 
@@ -42,7 +42,6 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
     }
   }, [shouldOpenModal]);
 
-  // Refresh from backend only if initialCourses is empty
   useEffect(() => {
     const refreshCourses = async () => {
       try {
@@ -61,8 +60,9 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
   }, [initialCourses]);
 
   useEffect(() => {
-    if (parsedCourses.length > 0) {
+    if (Array.isArray(parsedCourses) && parsedCourses.length > 0) {
       const newCourses = parsedCourses
+        .filter(Boolean)
         .filter(
           (parsed) =>
             !courses.some(
