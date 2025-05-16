@@ -1,87 +1,77 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// POST /api/generate-timetable
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { startDate, durationWeeks, examType, timeSlots, startTimes, examDurations } = body;
 
-    // Fetch courses, halls, and supervisors from the database
-    const [courses, halls, supervisors] = await Promise.all([
-      prisma.course.findMany(),
+    // Validate input
+    if (!startDate || !durationWeeks || !examType || !timeSlots || !startTimes || !examDurations) {
+      return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+    }
+
+    // Fetch halls, courses, and supervisors
+    const [halls, courses, supervisors] = await Promise.all([
       prisma.hall.findMany(),
+      prisma.course.findMany(),
       prisma.supervisor.findMany(),
     ]);
 
-    // Generate exam days based on the input parameters
+    // Generate exam days
     const examDays: Date[] = [];
-    let currentDate = new Date(startDate);
-    let addedDays = 0;
+    let current = new Date(startDate);
+    let added = 0;
 
-    while (addedDays < durationWeeks * 5) {
-      const dayOfWeek = currentDate.getDay();
+    while (added < durationWeeks * 5) {
+      const day = current.getDay();
       if (
-        (examType === "full-time" && ![0, 6].includes(dayOfWeek)) || // Exclude weekends for full-time
-        (examType === "part-time" && [5, 6].includes(dayOfWeek)) // Include only Friday and Saturday for part-time
+        (examType === "full-time" && ![0, 6].includes(day)) ||
+        (examType === "part-time" && [5, 6].includes(day))
       ) {
-        examDays.push(new Date(currentDate));
-        addedDays++;
+        examDays.push(new Date(current));
+        added++;
       }
-      currentDate.setDate(currentDate.getDate() + 1);
+      current.setDate(current.getDate() + 1);
     }
 
-    // Logic to generate timetable entries
+    // Create timetable
     const timetable = [];
+    let courseIndex = 0;
+
     for (const day of examDays) {
       for (const slot of timeSlots) {
         const startTime = startTimes[slot];
         const endTime = calculateEndTime(startTime, examDurations[slot]);
 
-        const course = courses.shift(); // Assign courses sequentially
-        const hall = halls[Math.floor(Math.random() * halls.length)]; // Randomly assign a hall
+        for (const hall of halls) {
+          const course = courses[courseIndex % courses.length];
+          const supervisor = supervisors[courseIndex % supervisors.length];
 
-        if (course) {
+          if (!course || !supervisor) {
+            throw new Error("No available courses or supervisors.");
+          }
+
           timetable.push({
             date: day.toISOString().split("T")[0],
             timeSlot: slot,
             startTime,
             endTime,
             courseCode: course.code,
-            courseTitle: course.title,
             hallName: hall.name,
-            studentsCount: course.studentsCount,
-            supervisors: supervisors.slice(0, 2).map((supervisor) => supervisor.id), // Use supervisor IDs
+            supervisors: [{ id: supervisor.id }],
           });
+
+          courseIndex++;
         }
       }
     }
 
-    // Save generated timetable entries to the database
-    for (const entry of timetable) {
-      await prisma.timetable.create({
-        data: {
-          date: entry.date,
-          timeSlot: entry.timeSlot,
-          startTime: entry.startTime,
-          endTime: entry.endTime,
-          courseCode: entry.courseCode,
-          courseTitle: entry.courseTitle,
-          hallName: entry.hallName,
-          studentsCount: entry.studentsCount,
-          supervisors: {
-            connect: entry.supervisors.map((id) => ({ id })), // Connect supervisors by ID
-          },
-        },
-      });
-    }
-
     return NextResponse.json(timetable, { status: 200 });
   } catch (error) {
-    console.error("Error generating timetable:", error);
-    return NextResponse.json(
-      { error: "Failed to generate timetable. Please check the server logs." },
-      { status: 500 }
-    );
+    console.error(error);
+    return NextResponse.json({ error: "Failed to generate timetable." }, { status: 500 });
   }
 }
 

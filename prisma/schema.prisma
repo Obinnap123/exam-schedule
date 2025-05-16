@@ -7,42 +7,41 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Course {
-  id            Int         @id @default(autoincrement())
-  code          String      @unique
-  title         String
-  level         Int
-  studentsCount Int
-  department    String?
-  timetable     Timetable[] // Many-to-many relationship with Timetable
+model Hall {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique // Ensure hall names are unique
+  capacity   Int?        // Optional field for hall capacity
+  timetables Timetable[] // One-to-many relationship with Timetable
 }
 
-model Hall {
-  id        Int         @id @default(autoincrement())
-  name      String      @unique
-  capacity  Int
-  timetable Timetable[] // Many-to-many relationship with Timetable
+model Course {
+  id             Int         @id @default(autoincrement())
+  code           String      @unique // Ensure course codes are unique
+  title          String
+  level          Int
+  department     String
+  studentsCount  Int
+  timetables     Timetable[] // One-to-many relationship with Timetable
 }
 
 model Supervisor {
-  id         String      @id
-  fullName   String
-  email      String      @unique
-  phone      String
-  department String?
-  timetable  Timetable[] @relation("SupervisorToTimetable") // Many-to-many with Timetable
+  id         Int     @id @default(autoincrement())
+  fullName    String
+  email       String      @unique
+  phone       String?
+  department  String?
+  timetables  Timetable[] @relation("SupervisorToTimetable")
 }
 
 model Timetable {
-  id            Int          @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   date          String
   timeSlot      String
   startTime     String
   endTime       String
-  courseCode    String
-  hallName      String
-  studentsCount Int
-  supervisors   Supervisor[] @relation("SupervisorToTimetable") // Many-to-many with Supervisor
-  course        Course       @relation(fields: [courseCode], references: [code]) // Many-to-one with Course
-  hall          Hall         @relation(fields: [hallName], references: [name]) // Many-to-one with Hall
+  courseCode    Course      @relation(fields: [courseId], references: [id]) // Link to Course
+  courseId      Int
+  hall          Hall        @relation(fields: [hallId], references: [id]) // Link to Hall
+  hallId        Int
+  supervisors   Supervisor[] @relation("SupervisorToTimetable")
 }

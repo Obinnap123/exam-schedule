@@ -11,6 +11,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { fullName, email, phone, department } = body;
 
+    // Validate required fields
     if (!fullName || !email) {
       return NextResponse.json(
         { error: "Full name and email are required." },
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Check if a supervisor with the same email already exists
     const existingSupervisor = await prisma.supervisor.findUnique({
       where: { email },
     });
@@ -29,12 +31,13 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create the new supervisor
     const newSupervisor = await prisma.supervisor.create({
       data: {
         fullName,
         email,
-        phone,
-        department, // include department here
+        phone: phone || null, // Handle optional phone field
+        department: department || null, // Handle optional department field
       },
     });
 
@@ -50,12 +53,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (error instanceof Error) {
-      console.error("Error details:", error.message);
-    } else {
-      console.error("Unexpected error:", error);
-    }
-
+    console.error("Error creating supervisor:", error);
     return NextResponse.json(
       { error: "Failed to create supervisor." },
       { status: 500 }
@@ -64,7 +62,6 @@ export async function POST(request: Request) {
     await prisma.$disconnect();
   }
 }
-
 // GET: Fetch all supervisors
 export async function GET() {
   try {

@@ -1,6 +1,6 @@
 // src/app/dashboard/generate-timetable/page.tsx
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import CSVUpload from "@/Components/CSVUpload";
 import { useCourseContext } from "@/context/CourseContext";
 
@@ -34,12 +34,18 @@ function GenerateTimetablePage() {
   };
 
   // Calculate End Time Based on Start Time and Duration
-  const calculateEndTime = (startTime: string, durationHours: number): string => {
+  const calculateEndTime = (
+    startTime: string,
+    durationHours: number
+  ): string => {
     const [hours, minutes] = startTime.split(":").map(Number);
     const totalMinutes = hours * 60 + minutes + durationHours * 60;
     const endHours = Math.floor(totalMinutes / 60) % 24;
     const endMinutes = totalMinutes % 60;
-    return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
+    return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(
+      2,
+      "0"
+    )}`;
   };
 
   // Handle File Upload
@@ -81,9 +87,8 @@ function GenerateTimetablePage() {
     while (daysToAdd < weeks * 5) {
       date.setDate(date.getDate() + 1);
       const day = date.getDay();
-      if (type === "full-time" && (day === 6 || day === 0)) continue;
-      if (type === "part-time" && day !== 5 && day !== 6) continue;
-      daysToAdd++;
+      if (type === "full-time" && ![0, 6].includes(day)) daysToAdd++;
+      if (type === "part-time" && [5, 6].includes(day)) daysToAdd++;
     }
     setEndDate(date.toISOString().split("T")[0]);
   };
@@ -137,26 +142,12 @@ function GenerateTimetablePage() {
     }
   };
 
-  // Fetch Persisted Timetable on Page Load
-  useEffect(() => {
-    const fetchTimetable = async () => {
-      try {
-        const response = await fetch("/api/timetable");
-        if (!response.ok) throw new Error("Failed to fetch timetable.");
-        const data = await response.json();
-        setGeneratedTimetable(data);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    fetchTimetable();
-  }, []);
-
   return (
     <div className="space-y-6 p-6">
       <h1 className="text-2xl font-bold text-black">Generate Timetable</h1>
       <p className="text-gray-600">
-        Upload a CSV or Excel file containing course details to generate the timetable.
+        Upload a CSV or Excel file containing course details to generate the
+        timetable.
       </p>
       <CSVUpload onFileParsed={handleFileParsed} />
       <button
@@ -174,6 +165,7 @@ function GenerateTimetablePage() {
         <div className="fixed inset-0 text-black bg-black bg-opacity-30 backdrop-blur-sm flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded-lg w-full max-w-2xl space-y-4 overflow-y-auto max-h-[80vh]">
             <h2 className="text-lg font-semibold">Exam Details</h2>
+
             {/* Exam Type */}
             <div>
               <label className="block mb-1">Exam Type</label>
@@ -190,6 +182,7 @@ function GenerateTimetablePage() {
                 <option value="part-time">Part-time</option>
               </select>
             </div>
+
             {/* Start Date */}
             <div>
               <label className="block mb-1">Start Date</label>
@@ -203,6 +196,7 @@ function GenerateTimetablePage() {
                 className="w-full border px-2 py-1 rounded"
               />
             </div>
+
             {/* Duration in Weeks */}
             <div>
               <label className="block mb-1">Duration (Weeks)</label>
@@ -222,6 +216,7 @@ function GenerateTimetablePage() {
                 className="w-full border px-2 py-1 rounded"
               />
             </div>
+
             {/* Time Slots */}
             <div>
               <label className="block mb-1">Select Time Slots</label>
@@ -275,6 +270,7 @@ function GenerateTimetablePage() {
                 ))}
               </div>
             </div>
+
             {/* End Date Display */}
             {endDate && (
               <div>
@@ -284,6 +280,7 @@ function GenerateTimetablePage() {
                 <p className="text-gray-800">{endDate}</p>
               </div>
             )}
+
             {/* Actions */}
             <div className="flex justify-end space-x-3 mt-4">
               <button
@@ -325,9 +322,9 @@ function GenerateTimetablePage() {
                 >
                   <td className="p-3">{entry.date}</td>
                   <td className="p-3">{entry.timeSlot}</td>
-                  <td className="p-3">{entry.courseCode}</td>
-                  <td className="p-3">{entry.hallName}</td>
-                  <td className="p-3">{entry.supervisors.join(", ")}</td>
+                  <td className="p-3">{entry.courseCode || "N/A"}</td>
+                  <td className="p-3">{entry.hallName || "N/A"}</td>
+                  <td className="p-3">{entry.supervisors.join(", ") || "N/A"}</td>
                 </tr>
               ))}
             </tbody>
