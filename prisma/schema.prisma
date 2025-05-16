@@ -1,5 +1,3 @@
-// src/prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,24 +8,41 @@ datasource db {
 }
 
 model Course {
-  id            Int      @id @default(autoincrement())
-  code          String   @unique
+  id            Int         @id @default(autoincrement())
+  code          String      @unique
   title         String
   level         Int
-  department    String
   studentsCount Int
+  department    String?
+  timetable     Timetable[] // Many-to-many relationship with Timetable
 }
 
 model Hall {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  capacity Int
+  id        Int         @id @default(autoincrement())
+  name      String      @unique
+  capacity  Int
+  timetable Timetable[] // Many-to-many relationship with Timetable
 }
 
 model Supervisor {
-  id       String  @id @default(cuid())
-  fullName String
-  email    String  @unique
-  phone    String?
+  id         String      @id
+  fullName   String
+  email      String      @unique
+  phone      String
   department String?
+  timetable  Timetable[] @relation("SupervisorToTimetable") // Many-to-many with Timetable
+}
+
+model Timetable {
+  id            Int          @id @default(autoincrement())
+  date          String
+  timeSlot      String
+  startTime     String
+  endTime       String
+  courseCode    String
+  hallName      String
+  studentsCount Int
+  supervisors   Supervisor[] @relation("SupervisorToTimetable") // Many-to-many with Supervisor
+  course        Course       @relation(fields: [courseCode], references: [code]) // Many-to-one with Course
+  hall          Hall         @relation(fields: [hallName], references: [name]) // Many-to-one with Hall
 }
