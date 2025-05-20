@@ -1,4 +1,3 @@
-// src/app/dashboard/generate-timetable/page.tsx
 "use client";
 import { useState } from "react";
 import CSVUpload from "@/Components/CSVUpload";
@@ -12,17 +11,22 @@ function GenerateTimetablePage() {
   const [durationWeeks, setDurationWeeks] = useState(1);
   const [examType, setExamType] = useState("full-time");
   const [endDate, setEndDate] = useState("");
-  const [timeSlots, setTimeSlots] = useState<string[]>(["morning", "afternoon"]);
+  const [timeSlots, setTimeSlots] = useState<string[]>([
+    "morning",
+    "afternoon",
+  ]);
   const [startTimes, setStartTimes] = useState<{ [key: string]: string }>({
     morning: "",
     afternoon: "",
     evening: "",
   });
-  const [examDurations, setExamDurations] = useState<{ [key: string]: number }>({
-    morning: 3,
-    afternoon: 3,
-    evening: 3,
-  });
+  const [examDurations, setExamDurations] = useState<{ [key: string]: number }>(
+    {
+      morning: 3,
+      afternoon: 3,
+      evening: 3,
+    }
+  );
   const [generatedTimetable, setGeneratedTimetable] = useState<any[]>([]);
 
   // Helper Function to Convert 24-Hour Time to 12-Hour Format
@@ -93,25 +97,22 @@ function GenerateTimetablePage() {
     setEndDate(date.toISOString().split("T")[0]);
   };
 
-  // Handle Checkbox Slot Change
+  // Handle Slot Change
   const handleSlotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value, checked } = e.target;
-    if (checked) {
-      setTimeSlots((prev) => [...prev, value]);
-    } else {
-      setTimeSlots((prev) => prev.filter((slot) => slot !== value));
-    }
-  };
-
-  // Handle Exam Duration Change
-  const handleDurationChange = (slot: string, value: string) => {
-    const duration = Number(value);
-    setExamDurations((prev) => ({ ...prev, [slot]: duration }));
+    setTimeSlots((prev) =>
+      checked ? [...prev, value] : prev.filter((s) => s !== value)
+    );
   };
 
   // Handle Start Time Change
   const handleStartTimeChange = (slot: string, value: string) => {
     setStartTimes((prev) => ({ ...prev, [slot]: value }));
+  };
+
+  // Handle Duration Change
+  const handleDurationChange = (slot: string, value: string) => {
+    setExamDurations((prev) => ({ ...prev, [slot]: Number(value) }));
   };
 
   // Handle Timetable Generation
@@ -308,9 +309,10 @@ function GenerateTimetablePage() {
             <thead className="bg-gray-100">
               <tr>
                 <th className="p-3">Date</th>
+                <th className="p-3">Day</th>
                 <th className="p-3">Time Slot</th>
-                <th className="p-3">Course Code</th>
-                <th className="p-3">Hall</th>
+                <th className="p-3">Course Codes</th>
+                <th className="p-3">Halls</th>
                 <th className="p-3">Supervisors</th>
               </tr>
             </thead>
@@ -321,10 +323,11 @@ function GenerateTimetablePage() {
                   className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
                 >
                   <td className="p-3">{entry.date}</td>
+                  <td className="p-3">{entry.day}</td>
                   <td className="p-3">{entry.timeSlot}</td>
-                  <td className="p-3">{entry.courseCode || "N/A"}</td>
-                  <td className="p-3">{entry.hallName || "N/A"}</td>
-                  <td className="p-3">{entry.supervisors.join(", ") || "N/A"}</td>
+                  <td className="p-3">{entry.courseCodes || "N/A"}</td>
+                  <td className="p-3">{entry.hallNames || "N/A"}</td>
+                  <td className="p-3">{entry.supervisors || "N/A"}</td>
                 </tr>
               ))}
             </tbody>

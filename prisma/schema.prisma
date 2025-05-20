@@ -36,6 +36,7 @@ model Supervisor {
 model Timetable {
   id            Int         @id @default(autoincrement())
   date          String
+  day           String
   timeSlot      String
   startTime     String
   endTime       String
