@@ -16,7 +16,6 @@ type Supervisor = {
 /* ---------- Component ---------- */
 function SupervisorClient({ initialSupervisors = [] }: { initialSupervisors: Supervisor[] }) {
   const [supervisors, setSupervisors] = useState<Supervisor[]>(initialSupervisors);
-
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Omit<Supervisor, "id">>({
     fullName: "",
@@ -26,7 +25,6 @@ function SupervisorClient({ initialSupervisors = [] }: { initialSupervisors: Sup
   });
 
   const [editingSupervisorId, setEditingSupervisorId] = useState<number | null>(null);
-
   const searchParams = useSearchParams();
   const shouldOpenModal = searchParams.get("add") === "true";
 
@@ -36,40 +34,77 @@ function SupervisorClient({ initialSupervisors = [] }: { initialSupervisors: Sup
     }
   }, [shouldOpenModal]);
 
+  useEffect(() => {
+    // GET request to fetch all supervisors
+    const fetchSupervisors = async () => {
+      try {
+        const response = await fetch("/api/supervisors");
+        if (!response.ok) throw new Error("Failed to fetch supervisors");
+        const data = await response.json();
+        setSupervisors(data);
+      } catch (error) {
+        console.error("Error fetching supervisors:", error);
+      }
+    };
+
+    fetchSupervisors();
+  }, []);
+
   const resetForm = () =>
     setForm({ fullName: "", email: "", phone: "", department: "" });
 
-  const addSupervisor = (e: React.FormEvent) => {
+  const addSupervisor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName || !form.email) return;
 
-    const exists = supervisors.some(
-      (s) => s.email.toLowerCase() === form.email.toLowerCase()
-    );
-    if (exists && editingSupervisorId === null) {
-      alert("A supervisor with that email already exists!");
-      return;
-    }
+    try {
+      const method = editingSupervisorId !== null ? "PATCH" : "POST";
+      const url =
+        editingSupervisorId !== null
+          ? `/api/supervisors/${editingSupervisorId}`
+          : "/api/supervisors";
 
-    if (editingSupervisorId !== null) {
-      setSupervisors((prev) =>
-        prev.map((s) =>
-          s.id === editingSupervisorId
-            ? { id: editingSupervisorId, ...form }
-            : s
-        )
-      );
-    } else {
-      setSupervisors((prev) => [...prev, { id: Date.now(), ...form }]);
-    }
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-    resetForm();
-    setEditingSupervisorId(null);
-    setOpen(false);
+      if (!response.ok) throw new Error("Failed to save supervisor");
+
+      const savedSupervisor = await response.json();
+
+      setSupervisors((prev) => {
+        if (editingSupervisorId !== null) {
+          return prev.map((s) =>
+            s.id === editingSupervisorId ? savedSupervisor : s
+          );
+        } else {
+          return [...prev, savedSupervisor];
+        }
+      });
+
+      resetForm();
+      setEditingSupervisorId(null);
+      setOpen(false);
+    } catch (error) {
+      console.error("Error saving supervisor:", error);
+    }
   };
 
-  const deleteSupervisor = (id: number) =>
-    setSupervisors((prev) => prev.filter((s) => s.id !== id));
+  const deleteSupervisor = async (id: number) => {
+    try {
+      const response = await fetch(`/api/supervisors/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete supervisor");
+
+      setSupervisors((prev) => prev.filter((s) => s.id !== id));
+    } catch (error) {
+      console.error("Error deleting supervisor:", error);
+    }
+  };
 
   const startEditing = (supervisor: Supervisor) => {
     setForm({

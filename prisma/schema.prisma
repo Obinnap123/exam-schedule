@@ -45,4 +45,25 @@ model Timetable {
   hall          Hall        @relation(fields: [hallId], references: [id]) // Link to Hall
   hallId        Int
   supervisors   Supervisor[] @relation("SupervisorToTimetable")
+  groupedCourseCodes String?
+  groupedHallNames   String?
+}
+
+model Chat {
+  id         Int           @id @default(autoincrement())
+  userId     String        // Can store the user's ID (or session token / email / anything that identifies the user)
+  title      String?       // Optional: give chats a title (e.g., "Exam Schedule - June 2025")
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  messages   ChatMessage[] // The chat messages linked to this chat
+}
+
+model ChatMessage {
+  id        Int       @id @default(autoincrement())
+  chatId    Int
+  role      String    // "user" or "assistant"
+  content   String    // The message content
+  createdAt DateTime  @default(now())
+
+  chat      Chat      @relation(fields: [chatId], references: [id])
 }

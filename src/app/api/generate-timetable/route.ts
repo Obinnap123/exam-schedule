@@ -125,12 +125,16 @@ export async function POST(request: Request) {
             timeSlot: `${startTime}-${endTime}`,
             startTime,
             endTime,
+            groupedCourseCodes: groupedCourses.join(", "),
+            groupedHallNames: groupedHalls.join(", "),
             courseCode: {
               connect: { id: courses[courseIndex % courses.length].id },
-            }, // Link to Course
-            hall: { connect: { id: halls[0]?.id || 0 } }, // Link to Hall
+            },
+            hall: {
+              connect: { id: halls[0]?.id || 0 },
+            },
             supervisors: {
-              connect: supervisors.map((supervisor) => ({ id: supervisor.id })), // Connect to Supervisors
+              connect: supervisors.map((s) => ({ id: s.id })),
             },
           },
         });
@@ -152,13 +156,17 @@ export async function GET() {
   try {
     const timetable = await prisma.timetable.findMany({
       include: {
-        courseCode: true, // Include the Course model
-        hall: true, // Include the Hall model
-        supervisors: true, // Include the Supervisor model
+        supervisors: true,
       },
     });
 
-    return NextResponse.json(timetable, { status: 200 });
+    const response = timetable.map((entry) => ({
+      ...entry,
+      courseCode: { code: entry.groupedCourseCodes || "N/A" },
+      hall: { name: entry.groupedHallNames || "N/A" },
+    }));
+
+    return NextResponse.json(response, { status: 200 });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

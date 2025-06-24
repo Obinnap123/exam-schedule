@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import CSVUpload from "@/Components/CSVUpload";
 import { useCourseContext } from "@/context/CourseContext";
 
@@ -29,6 +29,21 @@ function GenerateTimetablePage() {
   );
   const [generatedTimetable, setGeneratedTimetable] = useState<any[]>([]);
 
+  useEffect(() => {
+    const fetchSavedTimetable = async () => {
+      try {
+        const res = await fetch("/api/generate-timetable");
+        console.log(res);
+        if (!res.ok) throw new Error("Failed to fetch timetable");
+        const saved = await res.json();
+        setGeneratedTimetable(saved);
+      } catch (err) {
+        console.error("No saved timetable found");
+      }
+    };
+
+    fetchSavedTimetable();
+  }, []);
   // Helper Function to Convert 24-Hour Time to 12-Hour Format
   const formatTime12Hour = (time24: string): string => {
     const [hours, minutes] = time24.split(":").map(Number);
@@ -134,6 +149,12 @@ function GenerateTimetablePage() {
       });
       if (!response.ok) throw new Error("Failed to generate timetable.");
       const timetable = await response.json();
+      await fetch("/api/generate-timetable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timetable }),
+      });
+
       setGeneratedTimetable(timetable);
     } catch (error) {
       console.error(error);
@@ -325,9 +346,17 @@ function GenerateTimetablePage() {
                   <td className="p-3">{entry.date}</td>
                   <td className="p-3">{entry.day}</td>
                   <td className="p-3">{entry.timeSlot}</td>
-                  <td className="p-3">{entry.courseCodes || "N/A"}</td>
-                  <td className="p-3">{entry.hallNames || "N/A"}</td>
-                  <td className="p-3">{entry.supervisors || "N/A"}</td>
+                  <td className="p-3">{entry.groupedCourseCodes || "N/A"}</td>
+                  <td className="p-3">{entry.groupedHallNames || "N/A"}</td>
+                  <td className="p-3">
+                    {" "}
+                    {Array.isArray(entry.supervisors) &&
+                    entry.supervisors.length > 0
+                      ? entry.supervisors
+                          .map((sup: { fullName: string }) => sup.fullName)
+                          .join(", ")
+                      : "N/A"}
+                  </td>
                 </tr>
               ))}
             </tbody>
