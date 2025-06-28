@@ -1,17 +1,29 @@
 // app/api/chat/start/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; 
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const { userId, title } = body;
+  try {
+    const body = await request.json();
+    const { userId, title } = body;
 
-  const newChat = await prisma.chat.create({
-    data: {
-      title: title || "New Chat",
-      userId, // Or null if no user
-    },
-  });
-  
-  return NextResponse.json(newChat);
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    }
+
+    const newChat = await prisma.chat.create({
+      data: {
+        title: title || "New Chat",
+        userId,
+      },
+    });
+
+    return NextResponse.json(newChat);
+  } catch (error) {
+    console.error("API /chat/start error:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
 }

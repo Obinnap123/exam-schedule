@@ -15,10 +15,11 @@ export async function POST(request: Request) {
     },
   });
 
-  // 2️⃣ Detect special prompt
+  // 2️⃣ Detect special prompt (improved)
+  const schedulingPromptRegex = /act as an academic scheduling expert|generate an exam schedule|exam schedule|resource optimization/i;
   let promptToSend = content;
 
-  if (content.includes("Act as an academic scheduling expert")) {
+  if (schedulingPromptRegex.test(content)) {
     const courses = await prisma.course.findMany();
     const halls = await prisma.hall.findMany();
 
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
 
   const chosenModel = model || "gpt-3.5-turbo";
 
-  // 5️⃣ Call DeepSeek
+  // 5️⃣ Call openAI
   const assistantReply = await callOpenAI(
     [...formattedPriorMessages, { role: "user", content: promptToSend }],
     chosenModel // pass the model here
