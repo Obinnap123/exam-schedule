@@ -9,15 +9,22 @@ type Supervisor = {
   id: number;
   fullName: string;
   email: string;
-  phone?: string;
-  department?: string;
+  phone: string | null;
+  department: string | null;
 };
 
 /* ---------- Component ---------- */
 function SupervisorClient({ initialSupervisors = [] }: { initialSupervisors: Supervisor[] }) {
   const [supervisors, setSupervisors] = useState<Supervisor[]>(initialSupervisors);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<Omit<Supervisor, "id">>({
+  type SupervisorForm = {
+    fullName: string;
+    email: string;
+    phone: string;
+    department: string;
+  };
+
+  const [form, setForm] = useState<SupervisorForm>({
     fullName: "",
     email: "",
     phone: "",
@@ -67,7 +74,11 @@ function SupervisorClient({ initialSupervisors = [] }: { initialSupervisors: Sup
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          phone: form.phone || null,
+          department: form.department || null,
+        }),
       });
 
       if (!response.ok) throw new Error("Failed to save supervisor");

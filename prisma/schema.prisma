@@ -7,63 +7,85 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Hall {
-  id         Int         @id @default(autoincrement())
-  name       String      @unique // Ensure hall names are unique
-  capacity   Int?        // Optional field for hall capacity
-  timetables Timetable[] // One-to-many relationship with Timetable
+model User {
+  id                      Int       @id @default(autoincrement())
+  email                   String    @unique
+  password                String
+  firstName               String
+  lastName                String
+  isVerified              Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+  rememberToken           String?
+  chats                   Chat[]
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 model Course {
-  id             Int         @id @default(autoincrement())
-  code           String      @unique // Ensure course codes are unique
-  title          String
-  level          Int
-  department     String
-  studentsCount  Int
-  timetables     Timetable[] // One-to-many relationship with Timetable
+  id         Int         @id @default(autoincrement())
+  code       String      @unique
+  title      String @default("Untitled")
+  students   Int
+  duration   Int?
+  level      Int? // <-- add this
+  department String? // <-- add this
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  timetables Timetable[]
+}
+
+model Hall {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique
+  capacity   Int
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  timetables Timetable[]
 }
 
 model Supervisor {
   id         Int     @id @default(autoincrement())
-  fullName    String
-  email       String      @unique
-  phone       String?
-  department  String?
-  timetables  Timetable[] @relation("SupervisorToTimetable")
-}
+  fullName   String // ✅ Change from `name` to `fullName`
+  email      String  @unique
+  phone      String?
+  department String?
 
-model Timetable {
-  id            Int         @id @default(autoincrement())
-  date          String
-  day           String
-  timeSlot      String
-  startTime     String
-  endTime       String
-  courseCode    Course      @relation(fields: [courseId], references: [id]) // Link to Course
-  courseId      Int
-  hall          Hall        @relation(fields: [hallId], references: [id]) // Link to Hall
-  hallId        Int
-  supervisors   Supervisor[] @relation("SupervisorToTimetable")
-  groupedCourseCodes String?
-  groupedHallNames   String?
+  timetables Timetable[] @relation("TimetableSupervisors")
 }
 
 model Chat {
-  id         Int           @id @default(autoincrement())
-  userId     String        // Can store the user's ID (or session token / email / anything that identifies the user)
-  title      String?       // Optional: give chats a title (e.g., "Exam Schedule - June 2025")
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  messages   ChatMessage[] // The chat messages linked to this chat
+  id        Int           @id @default(autoincrement())
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id]) // <-- Add this line
+  title     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
 }
 
 model ChatMessage {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   chatId    Int
-  role      String    // "user" or "assistant"
-  content   String    // The message content
-  createdAt DateTime  @default(now())
+  role      String // "user" or "assistant"
+  content   String // The message content
+  createdAt DateTime @default(now())
 
-  chat      Chat      @relation(fields: [chatId], references: [id])
+  chat Chat @relation(fields: [chatId], references: [id])
+}
+
+model Timetable {
+  id                 Int          @id @default(autoincrement())
+  day                String
+  date               String // ✅ Make sure this line exists
+  timeSlot           String
+  startTime          String
+  endTime            String
+  groupedCourseCodes String
+  groupedHallNames   String
+  courseCode         Course?      @relation(fields: [courseCodeId], references: [id])
+  courseCodeId       Int?
+  hall               Hall?        @relation(fields: [hallId], references: [id])
+  hallId             Int?
+  supervisors        Supervisor[] @relation("TimetableSupervisors")
 }

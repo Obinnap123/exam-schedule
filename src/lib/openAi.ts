@@ -1,6 +1,6 @@
 export async function callOpenAI(
   messages: { role: "user" | "assistant"; content: string }[],
-  model?: string
+  model: string = "gpt-3.5-turbo"
 ) {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -16,8 +16,12 @@ export async function callOpenAI(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model,
-        messages,
+        model: model,
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 2000,
+        n: 1,
+        stream: false
       }),
     });
 
@@ -28,7 +32,13 @@ export async function callOpenAI(
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content ?? ""; // The actual reply
+    const reply = data.choices?.[0]?.message?.content;
+    
+    if (!reply) {
+      throw new Error("No response from OpenAI");
+    }
+
+    return reply;
   } catch (error) {
     console.error(error);
     throw error;

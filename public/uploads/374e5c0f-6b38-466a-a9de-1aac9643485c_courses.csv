@@ -1,0 +1,121 @@
+CourseCode,CourseTitle,Level,StudentsCount,Department
+CS101,Intro to Programming,100,145,Computer Science
+MATH110,Algebra I,100,120,Mathematics
+PHYS115,Mechanics,100,95,Physics
+CHEM120,General Chemistry,100,110,Chemistry
+BIO105,Intro to Biology,100,130,Biology
+ENG101,Academic Writing,100,180,Humanities
+ART110,Drawing Fundamentals,100,65,Arts
+MUSC120,Music Theory I,100,70,Music
+HIST130,World History,100,85,Humanities
+PSYC140,Intro to Psychology,100,150,Social Sciences
+CS201,Data Structures,200,90,Computer Science
+MATH210,Calculus II,200,80,Mathematics
+PHYS215,Electromagnetism,200,60,Physics
+CHEM220,Organic Chemistry,200,75,Chemistry
+BIO205,Genetics,200,85,Biology
+ENG201,Creative Writing,200,55,Humanities
+ART210,Digital Art,200,45,Arts
+MUSC220,Jazz Improvisation,200,40,Music
+HIST230,European History,200,65,Humanities
+PSYC240,Abnormal Psychology,200,70,Social Sciences
+CS301,Algorithms,300,60,Computer Science
+MATH310,Linear Algebra,300,50,Mathematics
+PHYS315,Quantum Physics,300,40,Physics
+CHEM320,Biochemistry,300,55,Chemistry
+BIO305,Microbiology,300,65,Biology
+ENG301,Shakespeare Studies,300,35,Humanities
+ART310,Oil Painting,300,30,Arts
+MUSC320,Orchestration,300,25,Music
+HIST330,Ancient Civilizations,300,45,Humanities
+PSYC340,Child Development,300,50,Social Sciences
+CS401,Machine Learning,400,30,Computer Science
+MATH410,Abstract Algebra,400,25,Mathematics
+PHYS415,Particle Physics,400,20,Physics
+CHEM420,Medicinal Chemistry,400,30,Chemistry
+BIO405,Neurobiology,400,35,Biology
+ENG401,Modern Poetry,400,20,Humanities
+ART410,Sculpture,400,15,Arts
+MUSC420,Music Composition,400,12,Music
+HIST430,Modern History,400,25,Humanities
+PSYC440,Clinical Psychology,400,30,Social Sciences
+CS102,Web Development,100,135,Computer Science
+MATH111,Geometry,100,115,Mathematics
+PHYS116,Thermodynamics,100,90,Physics
+CHEM121,Inorganic Chemistry,100,105,Chemistry
+BIO106,Ecology,100,125,Biology
+ENG102,Technical Writing,100,175,Humanities
+ART111,Watercolor Painting,100,60,Arts
+MUSC121,Ear Training,100,68,Music
+HIST131,US History,100,80,Humanities
+PSYC141,Social Psychology,100,145,Social Sciences
+CS202,Database Systems,200,85,Computer Science
+MATH211,Discrete Math,200,75,Mathematics
+PHYS216,Optics,200,58,Physics
+CHEM221,Analytical Chemistry,200,70,Chemistry
+BIO206,Cell Biology,200,80,Biology
+ENG202,Literary Analysis,200,50,Humanities
+ART211,Photography,200,42,Arts
+MUSC221,Choir,200,38,Music
+HIST231,Asian History,200,60,Humanities
+PSYC241,Cognitive Psychology,200,65,Social Sciences
+CS302,Operating Systems,300,55,Computer Science
+MATH311,Probability,300,45,Mathematics
+PHYS316,Solid State Physics,300,35,Physics
+CHEM321,Physical Chemistry,300,50,Chemistry
+BIO306,Immunology,300,60,Biology
+ENG302,Victorian Literature,300,30,Humanities
+ART311,Printmaking,300,25,Arts
+MUSC321,Music Production,300,22,Music
+HIST331,Middle Ages,300,40,Humanities
+PSYC341,Forensic Psychology,300,45,Social Sciences
+CS402,Artificial Intelligence,400,25,Computer Science
+MATH411,Number Theory,400,20,Mathematics
+PHYS416,Astrophysics,400,18,Physics
+CHEM421,Polymer Chemistry,400,25,Chemistry
+BIO406,Evolutionary Biology,400,30,Biology
+ENG402,Postmodern Literature,400,15,Humanities
+ART412,Ceramics,400,12,Arts
+MUSC422,Jazz History,400,10,Music
+HIST432,Renaissance History,400,20,Humanities
+PSYC442,Health Psychology,400,25,Social Sciences
+CS103,Mobile App Development,100,140,Computer Science
+MATH112,Statistics,100,125,Mathematics
+PHYS117,Wave Motion,100,100,Physics
+CHEM122,Environmental Chemistry,100,115,Chemistry
+BIO107,Marine Biology,100,140,Biology
+ENG103,World Literature,100,190,Humanities
+ART112,Figure Drawing,100,75,Arts
+MUSC122,Music History,100,80,Music
+HIST132,African History,100,95,Humanities
+PSYC142,Personality Psychology,100,160,Social Sciences
+CS203,Computer Networks,200,95,Computer Science
+MATH212,Differential Equations,200,85,Mathematics
+PHYS217,Modern Physics,200,65,Physics
+CHEM222,Organic Synthesis,200,80,Chemistry
+BIO207,Plant Biology,200,90,Biology
+ENG203,Drama Studies,200,60,Humanities
+ART212,Graphic Design,200,50,Arts
+MUSC222,Music Education,200,45,Music
+HIST232,Latin American History,200,70,Humanities
+PSYC243,Industrial Psychology,200,75,Social Sciences
+CS303,Software Engineering,300,65,Computer Science
+MATH312,Complex Analysis,300,55,Mathematics
+PHYS318,Nuclear Physics,300,45,Physics
+CHEM322,Chemical Engineering,300,60,Chemistry
+BIO308,Animal Behavior,300,70,Biology
+ENG303,American Literature,300,40,Humanities
+ART313,Illustration,300,35,Arts
+MUSC323,Chamber Music,300,30,Music
+HIST333,Colonial History,300,50,Humanities
+PSYC343,Sports Psychology,300,55,Social Sciences
+CS403,Data Science,400,35,Computer Science
+MATH413,Topology,400,30,Mathematics
+PHYS419,Quantum Computing,400,25,Physics
+CHEM423,Nanotechnology,400,35,Chemistry
+BIO409,Genomics,400,40,Biology
+ENG403,Science Fiction,400,25,Humanities
+ART413,Digital Media,400,20,Arts
+MUSC424,Opera Studies,400,15,Music
+HIST434,Military History,400,30,Humanities
+PSYC444,Positive Psychology,400,35,Social Sciences

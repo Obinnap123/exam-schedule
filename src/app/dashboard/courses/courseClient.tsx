@@ -3,18 +3,16 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Modal from "@/Components/Modal";
-import { useCourseContext } from "../../../context/CourseContext";
+import { useCourseContext, ParsedCourse } from "@/context/CourseContext";
 
 type Course = {
   id: number;
   code: string;
   title: string;
   level: number;
-  studentsCount: number;
+  students: number;
   department?: string;
 };
-
-type ParsedCourse = Omit<Course, "id">;
 
 interface CoursePageClientProps {
   initialCourses: Course[];
@@ -27,7 +25,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
     code: "",
     title: "",
     level: 100,
-    studentsCount: 0,
+    students: 0,
     department: "",
   });
   const [editingCourseId, setEditingCourseId] = useState<number | null>(null);
@@ -59,34 +57,12 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
     }
   }, [initialCourses]);
 
-  useEffect(() => {
-    if (Array.isArray(parsedCourses) && parsedCourses.length > 0) {
-      const newCourses = parsedCourses
-        .filter(Boolean)
-        .filter(
-          (parsed) =>
-            !courses.some(
-              (existing) =>
-                existing.code.toUpperCase() === parsed.code.toUpperCase()
-            )
-        )
-        .map((parsed) => ({
-          ...parsed,
-          id: Date.now() + Math.random(),
-        }));
-
-      if (newCourses.length > 0) {
-        setCourses((prev) => [...prev, ...newCourses]);
-      }
-    }
-  }, [parsedCourses, courses]);
-
   const resetForm = () => {
     setForm({
       code: "",
       title: "",
       level: 100,
-      studentsCount: 0,
+      students: 0,
       department: "",
     });
     setEditingCourseId(null);
@@ -97,53 +73,53 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
     if (!form.code || !form.title) return;
 
     try {
-      const exists = courses.some(
-        (c) => c.code.toUpperCase() === form.code.toUpperCase()
-      );
-      if (exists && editingCourseId === null) {
-        alert("Course code already exists!");
-        return;
+      const method = editingCourseId ? "PATCH" : "POST";
+      const url = editingCourseId 
+        ? `/api/courses/${editingCourseId}`
+        : "/api/courses";
+
+      const body = editingCourseId 
+        ? JSON.stringify(form)
+        : JSON.stringify({ courses: [{ ...form }] });
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Request failed");
       }
 
-      if (editingCourseId !== null) {
-        const response = await fetch(`/api/courses/${editingCourseId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-
-        if (!response.ok) throw new Error("Failed to update course.");
-
-        setCourses((prev) =>
-          prev.map((course) =>
-            course.id === editingCourseId
-              ? {
-                  id: editingCourseId,
-                  ...form,
-                  studentsCount: Number(form.studentsCount),
-                }
+      if (editingCourseId) {
+        // Update existing course
+        setCourses(prev => 
+          prev.map(course => 
+            course.id === editingCourseId 
+              ? { ...course, ...form, students: Number(form.students) } 
               : course
           )
         );
       } else {
-        const response = await fetch("/api/courses", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ courses: [{ ...form }] }),
-        });
-
-        if (!response.ok) throw new Error("Failed to save course.");
-
-        const newCourse = await response.json();
-        setCourses((prev) => [...prev, newCourse[0]]);
-        addCourses([newCourse[0]]);
+        // Add new course
+        const newCourse = {
+          ...form,
+          id: result.created?.[0]?.id || Date.now(),
+          students: Number(form.students)
+        };
+        
+        setCourses(prev => [...prev, newCourse]);
+        addCourses([newCourse]);
       }
 
       resetForm();
       setOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Error saving course.");
+      alert(`Error: ${error.message}`);
     }
   };
 
@@ -153,7 +129,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
       code: course.code,
       title: course.title,
       level: course.level,
-      studentsCount: course.studentsCount,
+      students: course.students,
       department: course.department || "",
     });
     setOpen(true);
@@ -167,7 +143,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
 
       if (!response.ok) throw new Error("Failed to delete course.");
 
-      setCourses((prev) => prev.filter((course) => course.id !== id));
+      setCourses(prev => prev.filter(course => course.id !== id));
     } catch (error) {
       console.error(error);
       alert("Error deleting course.");
@@ -212,7 +188,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
                 <td className="p-3">{course.code}</td>
                 <td className="p-3">{course.title}</td>
                 <td className="p-3">{course.level}</td>
-                <td className="p-3">{course.studentsCount}</td>
+                <td className="p-3">{course.students}</td>
                 <td className="p-3">{course.department}</td>
                 <td className="p-3 space-x-2">
                   <button
@@ -258,7 +234,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
                   setForm({ ...form, code: e.target.value.toUpperCase() })
                 }
                 className="w-full rounded border p-2"
-                placeholder="CSC 301"
+                placeholder="CSC 301"
                 required
               />
             </div>
@@ -301,9 +277,9 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
               <input
                 type="number"
                 min={1}
-                value={form.studentsCount}
+                value={form.students}
                 onChange={(e) =>
-                  setForm({ ...form, studentsCount: Number(e.target.value) })
+                  setForm({ ...form, students: Number(e.target.value) })
                 }
                 className="w-full rounded border p-2"
                 required
@@ -336,7 +312,7 @@ function CoursePageClient({ initialCourses }: CoursePageClientProps) {
               type="submit"
               className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
             >
-              Save
+              {editingCourseId ? "Update" : "Save"}
             </button>
           </div>
         </form>

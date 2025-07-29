@@ -1,4 +1,4 @@
-// Header.tsx
+"use client";
 import React from "react";
 
 interface HeaderProps {
@@ -23,7 +23,7 @@ function Header({ isSidebarOpen, toggleSidebar }: HeaderProps) {
           className="material-icons cursor-pointer"
           onClick={toggleSidebar}
         >
-          {isSidebarOpen ? "close" : "menu"} {/* Toggle between "menu" and "close" icons */}
+          {isSidebarOpen ? "close" : "menu"}
         </span>
       </div>
     </div>

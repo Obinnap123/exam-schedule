@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         title,
         level,
         department,
-        studentsCount,
+        students: Number(studentsCount),
       },
     });
 

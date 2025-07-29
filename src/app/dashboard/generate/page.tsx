@@ -1,9 +1,7 @@
-import GenerateClient from "./generateClient";
+'use client';
+
+import GenerateClient from './generateClient';
 
 export default function GeneratePage() {
-  return (
-    <div>
-      <GenerateClient />
-    </div>
-  );
+  return <GenerateClient />;
 }

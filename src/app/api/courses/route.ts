@@ -1,91 +1,146 @@
-// src/app/api/courses/route.ts
-// import { getAllCourses } from "@/lib/db/courses";
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// POST: Save courses to the database
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { courses } = body;
+    const { courses: inputCourses } = await request.json();
 
-    // Validate input
-    if (!Array.isArray(courses)) {
-      return NextResponse.json(
-        { error: 'Invalid input: Expected an array of courses.' },
-        { status: 400 }
-      );
+    if (!Array.isArray(inputCourses)) {
+      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
     }
 
-    // Use createMany for bulk insertion
-    const savedCourses = await prisma.course.createMany({
-      data: courses.map((course) => ({
-        code: course.code,
-        title: course.title,
-        level: course.level,
-        department: course.department,
-        studentsCount: course.studentsCount,
-      })),
-      skipDuplicates: true, // Skip duplicate course codes
-    });
+    const results = {
+      created: [] as any[],
+      skipped: [] as any[],
+      errors: [] as any[]
+    };
 
-    return NextResponse.json(
-      { message: `${savedCourses.count} courses saved successfully!` },
-      { status: 201 }
-    );
+    for (const course of inputCourses) {
+      try {
+        // Validate minimum requirements
+        if (!course.code) {
+          results.skipped.push({...course, reason: "Missing course code"});
+          continue;
+        }
+
+        // Check for existing course
+        const existingCourse = await prisma.course.findUnique({
+          where: { code: course.code.toUpperCase() }
+        });
+
+        if (existingCourse) {
+          results.skipped.push({
+            ...course,
+            reason: `Duplicate course: ${course.code}`
+          });
+          continue;
+        }
+
+        // Prepare data with defaults
+        const courseData = {
+          code: course.code.toUpperCase(),
+          title: course.title || `Course ${course.code}`,
+          students: Number(course.students) || 0,
+          department: course.department || "General",
+          level: course.level ? Number(course.level) : 100,
+        };
+
+        // Create new course
+        const created = await prisma.course.create({
+          data: courseData
+        });
+        
+        results.created.push(created);
+      } catch (error: any) {
+        console.error(`Error creating course ${course.code}:`, error);
+        results.errors.push({
+          course,
+          error: error.message || "Unknown error"
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: results.created.length > 0,
+      created: results.created,
+      createdCount: results.created.length,
+      skipped: results.skipped,
+      skippedCount: results.skipped.length,
+      errors: results.errors,
+      errorCount: results.errors.length,
+      message: results.created.length > 0 
+        ? `Created ${results.created.length} courses` 
+        : "No courses created"
+    }, {
+      status: results.created.length > 0 ? 201 : 400
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Error saving courses:", error);
     return NextResponse.json(
-      { error: 'Failed to save courses.' },
+      {
+        error: "Failed to process courses",
+        details: (error as Error).message || String(error),
+      },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-// GET: Fetch all courses from the database
 export async function GET() {
   try {
     const courses = await prisma.course.findMany();
     return NextResponse.json(courses, { status: 200 });
   } catch (error) {
-    console.error(error);
+    console.error("Error fetching courses:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch courses.' },
+      { error: "Failed to fetch courses" },
       { status: 500 }
     );
   }
 }
 
-// DELETE: Delete a course by ID
-// export async function DELETE(request: Request) {
-//   try {
-//     const url = new URL(request.url);
-//     const id = parseInt(url.pathname.split('/').pop() || '', 10);
+export async function PATCH(request: Request, { params }: { params: { id: string }}) {
+  try {
+    const { id } = params;
+    const data = await request.json();
+    
+    const updatedCourse = await prisma.course.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...data,
+        students: Number(data.students),
+        level: Number(data.level)
+      }
+    });
+    
+    return NextResponse.json(updatedCourse);
+  } catch (error) {
+    console.error("Error updating course:", error);
+    return NextResponse.json(
+      { error: "Failed to update course" },
+      { status: 500 }
+    );
+  }
+}
 
-//     // Validate input
-//     if (!id) {
-//       return NextResponse.json(
-//         { error: 'Invalid course ID.' },
-//         { status: 400 }
-//       );
-//     }
-
-//     // Delete the course
-//     await prisma.course.delete({
-//       where: { id },
-//     });
-
-//     return NextResponse.json(
-//       { message: 'Course deleted successfully!' },
-//       { status: 200 }
-//     );
-//   } catch (error) {
-//     console.error(error);
-//     return NextResponse.json(
-//       { error: 'Failed to delete course.' },
-//       { status: 500 }
-//     );
-//   }
-// }
+export async function DELETE(request: Request, { params }: { params: { id: string }}) {
+  try {
+    const { id } = params;
+    
+    await prisma.course.delete({
+      where: { id: parseInt(id) }
+    });
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    return NextResponse.json(
+      { error: "Failed to delete course" },
+      { status: 500 }
+    );
+  }
+}

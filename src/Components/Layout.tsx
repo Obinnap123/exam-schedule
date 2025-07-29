@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 
 function Layout({ children }: { children: React.ReactNode }) {
+  // Check if we're on the generate page
+  const isGeneratePage = usePathname().includes('/generate');
   const pathname = usePathname();
 
   // State to manage sidebar visibility
@@ -25,6 +27,11 @@ function Layout({ children }: { children: React.ReactNode }) {
     if (pathname.includes("generate")) return "Generate Timetable";
     return "Dashboard";
   }, [pathname]);
+
+  // If we're on the generate page, render without dashboard layout
+  if (isGeneratePage) {
+    return <>{children}</>;
+  }
 
   return (
     <>

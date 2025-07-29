@@ -7,7 +7,7 @@ import Modal from "@/Components/Modal";
 type Hall = {
   id: number;
   name: string;
-  capacity: number;
+  capacity: number | null;
 };
 
 interface HallPageClientProps {
@@ -160,7 +160,7 @@ function HallPageClient({ initialHalls }: HallPageClientProps) {
                 className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
               >
                 <td className="p-3">{hall.name}</td>
-                <td className="p-3">{hall.capacity}</td>
+              <td className="p-3">{hall.capacity || 'N/A'}</td>
                 <td className="p-3 space-x-2">
                   <button
                     onClick={() => editHall(hall)}

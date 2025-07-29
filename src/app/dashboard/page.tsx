@@ -2,31 +2,42 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-
-// TEMP: import mock arrays so the counts show
-// import { initialHalls } from "../halls/mock";
-// import { initialCourses } from "../courses/mock";
-// import { initialSupervisors } from "../supervisors/mock";
-
-const dummyHalls = [
-  { id: 1, name: "Main Hall", capacity: 120 },
-  { id: 2, name: "Room A", capacity: 60 },
-];
-
-const dummyCourses = [
-  { id: 1, code: "CSC 301" },
-  { id: 2, code: "MTH 202" },
-];
-
-const dummySupervisors = [{ id: 1, fullName: "Dr Amina Balogun" }];
+import { useState, useEffect } from "react";
 
 function DashboardHome() {
   const router = useRouter();
 
-  const [halls] = useState(dummyHalls);
-  const [courses] = useState(dummyCourses);
-  const [supervisors] = useState(dummySupervisors);
+  const [halls, setHalls] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch halls
+        const hallsRes = await fetch('/api/halls');
+        const hallsData = await hallsRes.json();
+        setHalls(hallsData);
+
+        // Fetch courses
+        const coursesRes = await fetch('/api/courses');
+        const coursesData = await coursesRes.json();
+        setCourses(coursesData);
+
+        // Fetch supervisors
+        const supervisorsRes = await fetch('/api/supervisors');
+        const supervisorsData = await supervisorsRes.json();
+        setSupervisors(supervisorsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   /* cards config */
   const cards = [
@@ -49,7 +60,17 @@ function DashboardHome() {
 
       {/* stat cards */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {cards.map((c) => (
+        {loading ? (
+          // Loading skeletons for cards
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-lg border p-6 shadow animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
+                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+              </div>
+            ))}
+          </>
+        ) : cards.map((c) => (
           <div
             key={c.label}
             onClick={() => router.push(c.href)}
