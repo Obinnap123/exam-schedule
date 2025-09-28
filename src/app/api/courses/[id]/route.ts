@@ -31,11 +31,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 
   const body = await request.json();
-  const { code, title, level, department, studentsCount } = body;
+  const { code, title, level, department, students } = body;
 
-  if (!code || !title || !level || !department || !studentsCount) {
+  if (!code || !title) {
     return NextResponse.json(
-      { error: "Invalid input: All fields are required." },
+      { error: "Invalid input: Course code and title are required." },
       { status: 400 }
     );
   }
@@ -46,9 +46,9 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       data: {
         code,
         title,
-        level,
-        department,
-        students: Number(studentsCount),
+        level: Number(level) || 100,
+        department: department || "",
+        students: Number(students) || 0,
       },
     });
 

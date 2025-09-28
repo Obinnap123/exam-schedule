@@ -87,11 +87,13 @@ export default function GenerateTimetable() {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Generation failed: ${errorText}`);
+        const errorData = await response.json();
+        console.log('Detailed error:', errorData); // Log the full error details
+        throw new Error(`Generation failed: ${JSON.stringify(errorData)}`);
       }
 
       const generatedTimetable = await response.json();
+      console.log('Generated timetable:', generatedTimetable); // Log successful generation
       setTimetable(generatedTimetable);
       setAlertMessage("Timetable generated successfully!");
     } catch (error: any) {
@@ -112,7 +114,7 @@ export default function GenerateTimetable() {
         {alertMessage && (
           <div
             className={`mb-4 rounded p-4 shadow ${
-              alertMessage.includes("Failed")
+              alertMessage.toLowerCase().includes("failed") || alertMessage.toLowerCase().includes("error")
                 ? "bg-red-100 text-red-800"
                 : "bg-green-100 text-green-800"
             }`}
