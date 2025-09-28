@@ -18,7 +18,7 @@ export async function sendVerificationEmail(
   try {
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${token}&email=${encodeURIComponent(to)}`;
     
-    console.log('Sending verification email:', {
+    // console.log('Sending verification email:', {
       to,
       isDev: process.env.NODE_ENV === 'development',
       hasToken: !!token,
@@ -67,7 +67,7 @@ export async function sendVerificationEmail(
       text: `Welcome to Exam Scheduler! Please verify your email by visiting: ${verificationLink}`
     });
 
-    console.log('Email send result:', result);
+    // console.log('Email send result:', result);
 
     if (result.error) {
       throw new Error(`Failed to send email: ${result.error.message}`);

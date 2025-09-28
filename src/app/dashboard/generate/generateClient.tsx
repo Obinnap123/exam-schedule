@@ -88,12 +88,12 @@ export default function GenerateTimetable() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.log('Detailed error:', errorData); // Log the full error details
+        // console.log('Detailed error:', errorData); // Log the full error details
         throw new Error(`Generation failed: ${JSON.stringify(errorData)}`);
       }
 
       const generatedTimetable = await response.json();
-      console.log('Generated timetable:', generatedTimetable); // Log successful generation
+      // console.log('Generated timetable:', generatedTimetable); // Log successful generation
       setTimetable(generatedTimetable);
       setAlertMessage("Timetable generated successfully!");
     } catch (error: any) {

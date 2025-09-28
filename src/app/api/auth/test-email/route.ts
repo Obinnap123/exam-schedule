@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const testEmail = searchParams.get('email');
 
-    console.log('Testing email configuration...', {
+    // console.log('Testing email configuration...', {
       environment: {
         NODE_ENV: process.env.NODE_ENV,
         HAS_RESEND_KEY: !!process.env.RESEND_API_KEY,
@@ -62,7 +62,7 @@ export async function GET(request: Request) {
       text: 'This is a test email to verify your email configuration is working.'
     });
 
-    console.log('Raw API Response:', result);
+    // console.log('Raw API Response:', result);
 
     if (result.error) {
       throw new Error(`Resend API Error: ${result.error.message}`);

@@ -19,7 +19,7 @@ export default function TestEmailPage() {
       const response = await fetch(`/api/auth/test-email${email ? `?email=${encodeURIComponent(email)}` : ''}`);
       const data = await response.json();
       
-      console.log('Test email response:', data);
+      // console.log('Test email response:', data);
       setResult(data);
       
     } catch (error) {

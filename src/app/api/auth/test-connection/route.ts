@@ -7,7 +7,7 @@ const resolve = promisify(dns.resolve);
 
 export async function GET() {
   try {
-    console.log('Testing DNS resolution...');
+    // console.log('Testing DNS resolution...');
 
     // Test domains to check
     const domains = [

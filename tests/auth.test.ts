@@ -57,7 +57,7 @@ describe('Authentication System Tests', () => {
         const isValid = await testEmailConfig();
         expect(isValid).toBe(true);
       } else {
-        console.log('Skipping email config test - no SMTP settings found');
+        // console.log('Skipping email config test - no SMTP settings found');
       }
     });
   });

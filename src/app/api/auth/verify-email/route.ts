@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const token = searchParams.get('token');
     const email = searchParams.get('email');
 
-    console.log('Verifying email:', { token, email });
+    // console.log('Verifying email:', { token, email });
 
     if (!token || !email) {
       return NextResponse.json(
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       },
     });
 
-    console.log('Found user:', user ? { id: user.id, email: user.email } : 'No user found');
+    // console.log('Found user:', user ? { id: user.id, email: user.email } : 'No user found');
 
     if (!user) {
       return NextResponse.json(
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       },
     });
 
-    console.log('User verified successfully');
+    // console.log('User verified successfully');
 
     // Redirect to login with success message
     return NextResponse.json({
