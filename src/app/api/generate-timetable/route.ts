@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { OpenAI } from "openai";
 import { PrismaClient } from "@prisma/client";
 import { timetableSchema } from "@/lib/schemas/timetableSchema";
-import { generatePhase1Prompt, generateSchedulingInfo } from "./prompts";
+import { generatePhase1Prompt, generatePhase2Prompt, generateSchedulingInfo } from "./prompts";
 import type { z } from "zod";
 
 const prisma = new PrismaClient();
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
           content: phase1Prompt + schedulingInfo 
         }
       ],
-      temperature: 0.1, // Reduced temperature for more consistent output
+      temperature: 0.1,
       max_tokens: 3000,
     });
     
@@ -117,298 +117,32 @@ export async function POST(request: Request) {
       throw new Error("Planning phase did not complete as expected.");
     }
 
-    const promptPhase2 = `
-You are a timetable generation expert. Generate a valid JSON timetable following this EXACT structure and rules.
-
-YOUR COURSES:
-LARGE COURSES (must be alone in BLUE room):
-- CSE101 (120 students)
-- ENG104 (150 students)
-- CSE201 (110 students)
-
-MEDIUM COURSES (use RED room when possible):
-- MTH102 (95 students)
-- PHY103 (80 students)
-- MTH202 (85 students)
-- PHY203 (70 students)
-- CSE301 (90 students)
-- CSE302 (75 students)
-- CSE401 (65 students)
-
-IMPORTANT: Generate a complete timetable with ALL courses scheduled.
-
-⚠️ STRICT CAPACITY LIMITS - NEVER EXCEED THESE:
-- RED ROOM: 96 STUDENTS MAXIMUM
-- BLUE ROOM: 192 STUDENTS MAXIMUM
-
-MANDATORY SCHEDULING RULES:
-
-1. BLUE ROOM RULES (192 student maximum):
-   ✓ Schedule ONE large course alone:
-     - CSE101 (120) alone
-     - ENG104 (150) alone
-     - CSE201 (110) alone
-   ✗ NEVER combine large courses
-   ✗ NEVER exceed 192 total
-
-2. RED ROOM RULES (96 student maximum):
-   ✓ Schedule ONE medium course alone:
-     - MTH102 (95)
-     - PHY103 (80)
-     - MTH202 (85)
-     - PHY203 (70)
-     - CSE301 (90)
-     - CSE302 (75)
-     - CSE401 (65)
-   ✗ NEVER exceed 96 total
-   ✗ NEVER use for large courses
-
-SCHEDULING ORDER:
-1. First: Schedule large courses (>96) in BLUE rooms
-2. Then: Schedule medium courses (70-96) one at a time
-3. Last: Schedule remaining small courses
-
-CRITICAL CHECKS FOR EACH SESSION:
-✓ RED room total ≤96
-✓ BLUE room total ≤192
-✓ Large courses only in BLUE
-✓ Check combined totals before pairing
-
-REMEMBER: 
-- Every single course must be scheduled
-- Don't leave rooms empty if there are unscheduled courses
-- Use all available sessions if needed
-
-ROOM RULES (CHECK THESE FOR EVERY SESSION):
-
-RED ROOM (96 max):
-✓ ALLOWED:
-  - Single course with 70-96 students
-  - Two smaller courses totaling ≤96
-  - Leave empty if needed
-✗ NOT ALLOWED:
-  - ANY course >96 students
-  - Multiple courses totaling >96
-  - Three or more courses together
-
-BLUE ROOM (192 max):
-✓ ALLOWED:
-  - Any course >96 students
-  - Multiple smaller courses totaling ≤192
-  - Leave empty if needed
-✗ NOT ALLOWED:
-  - Total students >192
-  - Waste space if RED room is empty
-
-CRITICAL CHECKS:
-1. Each course MUST be scheduled exactly once
-2. Check RED room total before assigning
-3. Verify BLUE room capacity
-4. Count total scheduled courses = input courses
-
-EXAMPLE TIMETABLE WITH YOUR COURSES:
-// This shows the EXACT structure you must follow
-{
-  "sessions": [
-    {
-      "session": "Week 1 Monday Morning",
-      "date": "2025-07-21",
-      "red": { 
-        "courses": [
-          {"code": "MTH102", "students": 95}
-        ],
-        "total": 95,
-        "utilization": "99.0%"
-      },
-      "blue": {
-        "courses": [
-          {"code": "ENG104", "students": 150}
-        ],
-        "total": 150,
-        "utilization": "78.1%"
-      }
-    },
-    {
-      "session": "Week 1 Monday Afternoon",
-      "date": "2025-07-21",
-      "red": { 
-        "courses": [
-          {"code": "PHY103", "students": 80}
-        ],
-        "total": 80,
-        "utilization": "83.3%"
-      },
-      "blue": {
-        "courses": [
-          {"code": "CSE101", "students": 120}
-        ],
-        "total": 120,
-        "utilization": "62.5%"
-      }
-    },
-    {
-      "session": "Week 1 Tuesday Morning",
-      "date": "2025-07-22",
-      "red": {
-        "courses": [
-          {"code": "MTH202", "students": 85}
-        ],
-        "total": 85,
-        "utilization": "88.5%"
-      },
-      "blue": {
-        "courses": [
-          {"code": "CSE201", "students": 110}
-        ],
-        "total": 110,
-        "utilization": "57.3%"
-      }
-    }
-  ]
-}
-
-Use this exact JSON format. Study these VALID examples carefully:
-
-\`\`\`json
-{
-  "sessions": [
-    {
-      "session": "Week 1 Monday Morning",
-      "date": "2025-07-21",
-      "red": {
-        "courses": [
-          {"code": "COURSE1", "students": 95}
-        ],
-        "total": 95,
-        "utilization": "99.0%"
-      },
-      "blue": {
-        "courses": [
-          {"code": "COURSE2", "students": 150}
-        ],
-        "total": 150,
-        "utilization": "78.1%"
-      }
-    },
-    {
-      "session": "Week 1 Monday Afternoon",
-      "date": "2025-07-21",
-      "red": {
-        "courses": [
-          {"code": "COURSE3", "students": 65},
-          {"code": "COURSE4", "students": 30}
-        ],
-        "total": 95,
-        "utilization": "99.0%"
-      },
-      "blue": {
-        "courses": [
-          {"code": "COURSE5", "students": 110}
-        ],
-        "total": 110,
-        "utilization": "57.3%"
-      }
-    }
-  ]
-}
-\`\`\`
-
-Basic Rules:
-1. RED room maximum: 96 students
-2. BLUE room maximum: 192 students
-3. Courses >96 students go in BLUE rooms
-4. Each course must be scheduled exactly once
-5. Use multiple sessions to schedule all courses
-
-JSON Format Example:
-\`\`\`json
-{
-  "sessions": [
-    {
-      "session": "Week 1 Monday Morning",
-      "date": "2025-07-21",
-      "red": {
-        "courses": [{"code": "MTH102", "students": 95}],
-        "total": 95,
-        "utilization": "99.0%"
-      },
-      "blue": {
-        "courses": [{"code": "ENG104", "students": 150}],
-        "total": 150,
-        "utilization": "78.1%"
-      }
-    }
-  ]
-}
-\`\`\`
-
-YOU MUST:
-1. Include ALL courses in the schedule
-2. Never exceed room capacities
-3. Return valid JSON only
-
-REQUIREMENTS:
-- Include ALL courses
-- Calculate correct totals and utilization
-- Use both rooms efficiently
-- Balance morning/afternoon sessions
-- Spread department exams across days
-
-Return ONLY valid JSON in the format shown.
-`;
-
     let validated: ValidatedTimetable | undefined;
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       console.log(`\n=== Attempt ${attempt} ===`);
-    
-      // First, get planning from Phase 1
-      const planningCompletion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
-        messages: [
-          { 
-            role: "system", 
-            content: "You are a timetable scheduling expert. Plan how to schedule these courses." 
-          },
-          { 
-            role: "user", 
-            content: `These are the courses to schedule: ${JSON.stringify(dbCourses, null, 2)}. Create a plan to schedule them.` 
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 1000
-      });
-
-      console.log('Planning Phase Output:', planningCompletion.choices[0]?.message?.content);
-
-      // Then generate the actual timetable
+      
       const completion2 = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
         messages: [
           { 
             role: "system", 
-            content: "You are a timetable generation expert. Generate a valid JSON timetable." 
+            content: "You are a timetable generation expert. Generate a valid JSON timetable following the provided rules exactly." 
           },
           {
             role: "assistant",
-            content: planningCompletion.choices[0]?.message?.content || ""
+            content: planningResponse
           },
           { 
             role: "user", 
-            content: promptPhase2 
+            content: generatePhase2Prompt(dbCourses, sessionsMeta)
           }
         ],
         temperature: 0.1,
         max_tokens: 3000
       });
-    
-      const response = completion2.choices[0]?.message?.content;
-      console.log('\nGeneration Response:', response);
-
-      if (!response) {
-        console.log('Error: Empty response from OpenAI');
-        continue;
-      }      const content = completion2.choices[0]?.message?.content;
+      
+      const content = completion2.choices[0]?.message?.content;
       if (!content) {
         console.warn(`Attempt ${attempt}: Empty GPT response.`);
         continue;
@@ -425,8 +159,6 @@ Return ONLY valid JSON in the format shown.
       if (jsonContent.startsWith('"') && jsonContent.endsWith('"')) {
         jsonContent = jsonContent.slice(1, -1);
       }
-
-      console.log('\nTrying to parse JSON:', jsonContent);
 
       try {
         const parsed = JSON.parse(jsonContent);
