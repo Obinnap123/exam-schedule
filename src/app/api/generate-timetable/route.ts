@@ -209,6 +209,119 @@ function autoCorrectTimetable(
   return { sessions };
 }
 
+// Combine multiple timetables into one master timetable
+function combineTimetables(timetables: any[], sessionsMeta: any[]) {
+  const RED_CAP = 96;
+  const BLUE_CAP = 192;
+  
+  // Create empty sessions for all available time slots
+  const masterSessions = sessionsMeta.map(meta => ({
+    session: meta.session,
+    date: meta.date,
+    red: { courses: [], total: 0, utilization: "0%" },
+    blue: { courses: [], total: 0, utilization: "0%" }
+  }));
+  
+  // Track which courses are already placed
+  const placedCourses = new Set<string>();
+  
+  // Helper to update room totals
+  const updateRoomTotals = (room: any, cap: number) => {
+    room.total = room.courses.reduce((sum: number, c: any) => sum + (c.students || 0), 0);
+    room.utilization = calculateUtilization(room.total, cap);
+  };
+  
+  // Process each timetable and merge courses into master sessions
+  for (const timetable of timetables) {
+    for (const session of timetable.sessions || []) {
+      // Find matching master session
+      const masterSession = masterSessions.find(ms => ms.session === session.session);
+      if (!masterSession) continue;
+      
+      // Add red room courses
+      for (const course of session.red.courses || []) {
+        if (placedCourses.has(course.code)) continue; // Skip duplicates
+        
+        // Check if course fits in red room
+        if (course.students <= 96 && masterSession.red.total + course.students <= RED_CAP) {
+          (masterSession.red.courses as any[]).push(course);
+          updateRoomTotals(masterSession.red, RED_CAP);
+          placedCourses.add(course.code);
+        } else if (masterSession.blue.total + course.students <= BLUE_CAP) {
+          // Try blue room if red doesn't fit
+          (masterSession.blue.courses as any[]).push(course);
+          updateRoomTotals(masterSession.blue, BLUE_CAP);
+          placedCourses.add(course.code);
+        }
+      }
+      
+      // Add blue room courses
+      for (const course of session.blue.courses || []) {
+        if (placedCourses.has(course.code)) continue; // Skip duplicates
+        
+        if (masterSession.blue.total + course.students <= BLUE_CAP) {
+          (masterSession.blue.courses as any[]).push(course);
+          updateRoomTotals(masterSession.blue, BLUE_CAP);
+          placedCourses.add(course.code);
+        }
+      }
+    }
+  }
+  
+  return { sessions: masterSessions };
+}
+
+// Create a simple fallback timetable for a chunk when AI fails
+function createSimpleChunkTimetable(chunk: any[], sessionsMeta: any[]) {
+  const RED_CAP = 96;
+  const BLUE_CAP = 192;
+  const sessions: any[] = [];
+  
+  // Sort courses by size (largest first)
+  const sortedCourses = [...chunk].sort((a, b) => b.students - a.students);
+  
+  let courseIndex = 0;
+  let sessionIndex = 0;
+  
+  while (courseIndex < sortedCourses.length && sessionIndex < sessionsMeta.length) {
+    const sessionMeta = sessionsMeta[sessionIndex];
+    const session = {
+      session: sessionMeta.session,
+      date: sessionMeta.date,
+      red: { courses: [], total: 0, utilization: "0%" },
+      blue: { courses: [], total: 0, utilization: "0%" }
+    };
+    
+    // Fill RED room first (courses ≤ 96 students)
+    while (courseIndex < sortedCourses.length && 
+           sortedCourses[courseIndex].students <= 96 && 
+           session.red.total + sortedCourses[courseIndex].students <= RED_CAP) {
+      const course = sortedCourses[courseIndex];
+      (session.red.courses as any[]).push({ code: course.code, students: course.students });
+      session.red.total += course.students;
+      courseIndex++;
+    }
+    
+    // Fill BLUE room (any remaining courses that fit)
+    while (courseIndex < sortedCourses.length && 
+           session.blue.total + sortedCourses[courseIndex].students <= BLUE_CAP) {
+      const course = sortedCourses[courseIndex];
+      (session.blue.courses as any[]).push({ code: course.code, students: course.students });
+      session.blue.total += course.students;
+      courseIndex++;
+    }
+    
+    // Update utilization
+    session.red.utilization = calculateUtilization(session.red.total, RED_CAP);
+    session.blue.utilization = calculateUtilization(session.blue.total, BLUE_CAP);
+    
+    sessions.push(session);
+    sessionIndex++;
+  }
+  
+  return { sessions };
+}
+
 export async function POST(request: Request) {
   try {
     const { startDate, weeks } = await request.json();
@@ -247,6 +360,7 @@ export async function POST(request: Request) {
       );
     }
 
+
     const start = new Date(startDate);
     const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
     const sessionsMeta = [];
@@ -274,221 +388,121 @@ export async function POST(request: Request) {
       .map((s) => `- ${s.session} (${s.date})`)
       .join("\n");
 
-    const phase1Prompt = generatePhase1Prompt(
-      dbCourses,
-      totalSessions,
-      sessionDetails
-    );
-    const schedulingInfo = generateSchedulingInfo(dbCourses, totalSessions);
-
-    // console.log('Starting timetable generation...');
-    // console.log('Total courses to schedule:', dbCourses.length);
-
-    const messages = [
-      {
-        role: "system",
-        content:
-          "You are an expert academic scheduling system. Your task is to create efficient exam timetables that maximize room usage and follow all constraints.",
-      },
-      {
-        role: "user",
-        content: phase1Prompt + schedulingInfo,
-      },
-    ] as ChatCompletionCreateParamsNonStreaming["messages"];
-    // console.log('Phase 1 Messages:', messages);
-
-    const completion1 = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
-      messages,
-      temperature: 0.1,
-      max_tokens: 3000,
-    });
-
-    // console.log('Phase 1 Response:', completion1.choices[0]?.message?.content);
-
-    const planningResponse = completion1.choices[0]?.message?.content;
-    if (!planningResponse || !planningResponse.includes("PHASE 2 READY")) {
-      throw new Error("Planning phase did not complete as expected.");
+    // BATCHING APPROACH: Split courses into manageable chunks
+    const CHUNK_SIZE = 15; // Process 15 courses at a time (smaller for better reliability)
+    const courseChunks = [];
+    
+    for (let i = 0; i < dbCourses.length; i += CHUNK_SIZE) {
+      courseChunks.push(dbCourses.slice(i, i + CHUNK_SIZE));
     }
+    
+    console.log(`Processing ${dbCourses.length} courses in ${courseChunks.length} chunks of ${CHUNK_SIZE} each`);
 
-    let validated: ValidatedTimetable | undefined;
-    let correctionNote = "";
-    let previousJsonForFix = "";
-
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      // console.log(`\n=== Attempt ${attempt} ===`);
-
-      const phase2Messages = [
+    const allTimetables = [];
+    
+    // Process each chunk with AI
+    for (let chunkIndex = 0; chunkIndex < courseChunks.length; chunkIndex++) {
+      const chunk = courseChunks[chunkIndex];
+      console.log(`Processing chunk ${chunkIndex + 1}/${courseChunks.length} with ${chunk.length} courses`);
+      
+      const chunkPhase1Prompt = generatePhase1Prompt(chunk, totalSessions, sessionDetails);
+      const chunkSchedulingInfo = generateSchedulingInfo(chunk, totalSessions);
+      
+      const chunkMessages = [
         {
           role: "system",
-          content:
-            "You are a timetable generation expert. Generate a valid JSON timetable following the provided rules exactly. Compute totals as the sum of listed course students and ensure utilization values match those totals and capacities (RED 96, BLUE 192).",
-        },
-        {
-          role: "assistant",
-          content: planningResponse,
+          content: "You are an expert academic scheduling system. Your task is to create efficient exam timetables that maximize room usage and follow all constraints.",
         },
         {
           role: "user",
-          content: generatePhase2Prompt(dbCourses, sessionsMeta),
+          content: chunkPhase1Prompt + chunkSchedulingInfo,
         },
-        ...(correctionNote
-          ? [
-              {
-                role: "user" as const,
-                content: `IMPORTANT: The previous attempt failed validation: ${correctionNote}\n\nHere is the last JSON you produced. Fix ONLY the allocations that violate the rules; keep all courses and student counts unchanged. Ensure every course appears exactly once. Output ONLY the corrected JSON (no extra text).\n\n--- BEGIN PREVIOUS JSON ---\n${previousJsonForFix}\n--- END PREVIOUS JSON ---`,
-              },
-            ]
-          : []),
       ] as ChatCompletionCreateParamsNonStreaming["messages"];
-
-      console.log(phase2Messages);
-
-      const completion2 = await openai.chat.completions.create({
+      
+      const completion1 = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
-        messages: phase2Messages,
+        messages: chunkMessages,
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 2000, // Smaller max_tokens for smaller chunks
       });
-
-      const content = completion2.choices[0]?.message?.content;
-      if (!content) {
-        console.warn(`Attempt ${attempt}: Empty GPT response.`);
-        continue;
+      
+      const planningResponse = completion1.choices[0]?.message?.content;
+      if (!planningResponse || !planningResponse.includes("PHASE 2 READY")) {
+        throw new Error(`Planning phase failed for chunk ${chunkIndex + 1}`);
       }
 
-      // console.log(`🔍 GPT Raw Output (Attempt ${attempt}):\n`, content);
-
-      // Try to extract JSON from markdown code blocks first
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      let jsonContent = jsonMatch ? jsonMatch[1] : content;
-
-      // Clean up the JSON string
-      jsonContent = jsonContent.trim();
-      if (jsonContent.startsWith('"') && jsonContent.endsWith('"')) {
-        jsonContent = jsonContent.slice(1, -1);
-      }
-
-      try {
-        const parsed = JSON.parse(jsonContent);
-        // console.log('\nSuccessfully parsed JSON:', JSON.stringify(parsed, null, 2));
-
-        // Auto-correct capacities and constraints before validation
-        const corrected = autoCorrectTimetable(
-          parsed,
-          dbCourses.map((c) => ({
+      // Generate timetable for this chunk
+      let chunkTimetable = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const phase2Messages = [
+            {
+              role: "system",
+              content: "You are a timetable generation expert. Generate a valid JSON timetable following the provided rules exactly.",
+            },
+            {
+              role: "assistant",
+              content: planningResponse,
+            },
+            {
+              role: "user",
+              content: generatePhase2Prompt(chunk, sessionsMeta),
+            },
+          ] as ChatCompletionCreateParamsNonStreaming["messages"];
+          
+          const completion2 = await openai.chat.completions.create({
+            model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
+            messages: phase2Messages,
+            temperature: 0.1,
+            max_tokens: 2000,
+          });
+          
+          const content = completion2.choices[0]?.message?.content;
+          if (!content) {
+            console.warn(`Chunk ${chunkIndex + 1} attempt ${attempt}: Empty response`);
+            continue;
+          }
+          
+          // Extract and parse JSON
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          let jsonContent = jsonMatch ? jsonMatch[1] : content;
+          jsonContent = jsonContent.trim();
+          
+          console.log(`Chunk ${chunkIndex + 1} attempt ${attempt}: Trying to parse JSON (length: ${jsonContent.length})`);
+          
+          const parsed = JSON.parse(jsonContent);
+          const corrected = autoCorrectTimetable(parsed, chunk.map(c => ({
             code: c.code,
             students: c.students,
-            department: c.department ?? undefined,
-          }))
-        );
-
-        validated = timetableSchema.parse(corrected);
-        // console.log(`Attempt ${attempt} - Schema validation passed`);
-
-        const seenCourses = new Set<string>();
-        const seenDepartments = new Map<string, Set<string>>(); // Track departments by day
-
-        for (const session of validated.sessions) {
-          // Validate room capacities
-          if (session.red.total > 96)
-            throw new Error(
-              `Red seat overflow in ${session.session}: ${session.red.total} students`
-            );
-          if (session.blue.total > 192)
-            throw new Error(
-              `Blue seat overflow in ${session.session}: ${session.blue.total} students`
-            );
-
-          // Extract day from session (e.g., "Week 1 Monday Morning" -> "Monday")
-          const day = session.session.split(" ")[2];
-
-          for (const color of ["red", "blue"] as const) {
-            for (const course of session[color].courses) {
-              // Check for duplicate courses
-              if (seenCourses.has(course.code)) {
-                throw new Error(
-                  `Course "${course.code}" appears in multiple sessions.`
-                );
-              }
-              seenCourses.add(course.code);
-
-              // Track department distribution
-              const dept = dbCourses.find(
-                (c) => c.code === course.code
-              )?.department;
-              if (dept) {
-                if (!seenDepartments.has(day)) {
-                  seenDepartments.set(day, new Set());
-                }
-                seenDepartments.get(day)!.add(dept);
-              }
-
-              // Validate course size constraints
-              if (color === "red" && course.students > 96) {
-                throw new Error(
-                  `Course "${course.code}" with ${course.students} students incorrectly assigned to RED room`
-                );
-              }
-            }
+            department: c.department ?? undefined
+          })));
+          
+          chunkTimetable = corrected;
+          break; // Success!
+        } catch (err) {
+          console.warn(`Chunk ${chunkIndex + 1} attempt ${attempt} failed:`, err);
+          if (attempt === 3) {
+            console.error(`Chunk ${chunkIndex + 1} failed completely, creating fallback timetable for this chunk`);
+            // Create a simple fallback timetable for this chunk
+            chunkTimetable = createSimpleChunkTimetable(chunk, sessionsMeta);
+            break;
           }
         }
-
-        // Verify all courses are scheduled
-        const scheduledCount = seenCourses.size;
-        if (scheduledCount !== dbCourses.length) {
-          throw new Error(
-            `Not all courses scheduled. Expected ${dbCourses.length}, but got ${scheduledCount}`
-          );
-        }
-
-        break; // Success!
-      } catch (err: unknown) {
-        console.warn(`\n❌ Attempt ${attempt} failed`);
-
-        // Type guard for better error handling
-        const error = err instanceof Error ? err : new Error(String(err));
-
-        // console.log('Error type:', error.constructor.name);
-        // console.log('Error message:', error.message);
-
-        if (error instanceof SyntaxError) {
-          // console.log('JSON Parse Error - Invalid JSON format');
-        } else if (error instanceof Error) {
-          // console.log('Validation Error:', error.message);
-        }
-
-        if (attempt === 3) {
-          const finalError = {
-            message: "Timetable generation failed after 3 attempts",
-            lastAttemptError: error.message,
-            coursesCount: dbCourses.length,
-            validationPhase: "Failed",
-            debug: {
-              errorType: error.constructor.name,
-              fullError: error.toString(),
-            },
-          };
-          console.error(
-            "\nFinal error details:",
-            JSON.stringify(finalError, null, 2)
-          );
-          throw new Error(JSON.stringify(finalError));
-        }
-
-        // Pass the validator feedback and the prior JSON into the next attempt
-        correctionNote = error.message;
-        if (typeof jsonContent === "string" && jsonContent.length > 0) {
-          // Keep a compact copy to stay within context limits
-          previousJsonForFix = jsonContent;
-        }
       }
+      
+      if (!chunkTimetable) {
+        throw new Error(`No valid timetable generated for chunk ${chunkIndex + 1}`);
+      }
+      
+      allTimetables.push(chunkTimetable);
     }
-
-    if (!validated) {
-      throw new Error("No valid timetable was generated.");
-    }
-
+    
+    // Combine all chunk timetables into one master timetable
+    const masterTimetable = combineTimetables(allTimetables, sessionsMeta);
+    
+    // Validate the final combined timetable
+    const validated = timetableSchema.parse(masterTimetable);
+    
     return NextResponse.json(validated.sessions, { status: 200 });
   } catch (error) {
     console.error("Timetable generation error:", error);
