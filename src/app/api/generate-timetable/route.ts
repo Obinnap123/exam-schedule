@@ -38,7 +38,13 @@ function generateTimetableGreedy(
 
   // Separate courses by type for strategic placement
   const largeCourses = courses.filter((c) => c.students > 96).sort((a, b) => b.students - a.students);
-  const mediumSmallCourses = courses.filter((c) => c.students <= 96).sort((a, b) => b.students - a.students);
+  const mediumSmallCourses = courses.filter((c) => c.students <= 96);
+  
+  // RANDOMIZATION: Shuffle medium/small courses for different arrangements each time
+  const shuffledMediumSmall = [...mediumSmallCourses].sort(() => Math.random() - 0.5);
+  
+  // Also shuffle sessions to randomize which sessions get used first
+  const shuffledSessions = [...sessionsMeta].sort(() => Math.random() - 0.5);
 
   // Initialize all sessions with empty rooms
   const sessions: Session[] = sessionsMeta.map((meta) => ({
@@ -52,12 +58,13 @@ function generateTimetableGreedy(
   const placedCourses = new Set<string>();
   const unplacedCourses: Course[] = [];
 
-  console.log(`\n🎯 IMPROVED GREEDY ALGORITHM TIMETABLE GENERATION`);
+  console.log(`\n🎯 RANDOMIZED GREEDY ALGORITHM TIMETABLE GENERATION`);
   console.log(`Total courses: ${courses.length}`);
-  console.log(`   Large courses (>96): ${largeCourses.length}`);
-  console.log(`   Medium/Small courses (≤96): ${mediumSmallCourses.length}`);
-  console.log(`Total sessions: ${sessions.length}`);
+  console.log(`   Large courses (>96): ${largeCourses.length} (fixed order)`);
+  console.log(`   Medium/Small courses (≤96): ${mediumSmallCourses.length} (RANDOMIZED)`);
+  console.log(`Total sessions: ${sessions.length} (RANDOMIZED order)`);
   console.log(`Total capacity: ${sessions.length * (RED_CAP + BLUE_CAP)} students`);
+  console.log(`🎲 Each generation will produce a different arrangement!\n`);
   
   // CRITICAL CHECK: Can we actually fit this?
   if (largeCourses.length > sessions.length) {
@@ -88,9 +95,9 @@ function generateTimetableGreedy(
 
   // NEW STRATEGY: Fill RED rooms first, then place large courses, then fill remaining BLUE
   
-  // PHASE 1: Fill ALL RED rooms with smaller courses first
-  console.log(`\n📍 PHASE 1: Filling RED rooms with small/medium courses...`);
-  for (const course of mediumSmallCourses) {
+  // PHASE 1: Fill ALL RED rooms with smaller courses first (RANDOMIZED ORDER)
+  console.log(`\n📍 PHASE 1: Filling RED rooms with small/medium courses... (RANDOMIZED)`);
+  for (const course of shuffledMediumSmall) {
     let placed = false;
     
     for (const session of sessions) {
@@ -112,12 +119,15 @@ function generateTimetableGreedy(
   }
   console.log(`   Placed ${placedCourses.size} courses in RED rooms`);
 
-  // PHASE 2: Place large courses in BLUE rooms (they MUST be alone)
-  console.log(`\n📍 PHASE 2: Placing ${largeCourses.length} large courses in BLUE rooms...`);
+  // PHASE 2: Place large courses in BLUE rooms (they MUST be alone) - RANDOMIZED SESSION ORDER
+  console.log(`\n📍 PHASE 2: Placing ${largeCourses.length} large courses in BLUE rooms... (RANDOMIZED session order)`);
   for (const course of largeCourses) {
     let placed = false;
     
-    for (const session of sessions) {
+    // Use shuffled sessions to randomize which sessions get used first
+    for (const sessionMeta of shuffledSessions) {
+      const session = sessions.find(s => s.session === sessionMeta.session);
+      if (!session) continue;
       // Find an EMPTY BLUE room
       if (session.blue.courses.length === 0) {
         session.blue.courses.push({ code: course.code, students: course.students });
@@ -136,9 +146,9 @@ function generateTimetableGreedy(
     }
   }
 
-  // PHASE 3: Place remaining small/medium courses in available BLUE rooms
-  const remainingCourses = mediumSmallCourses.filter(c => !placedCourses.has(c.code));
-  console.log(`\n📍 PHASE 3: Placing ${remainingCourses.length} remaining courses in BLUE rooms...`);
+  // PHASE 3: Place remaining small/medium courses in available BLUE rooms (RANDOMIZED ORDER)
+  const remainingCourses = shuffledMediumSmall.filter(c => !placedCourses.has(c.code));
+  console.log(`\n📍 PHASE 3: Placing ${remainingCourses.length} remaining courses in BLUE rooms... (RANDOMIZED)`);
   
   for (const course of remainingCourses) {
     let placed = false;
