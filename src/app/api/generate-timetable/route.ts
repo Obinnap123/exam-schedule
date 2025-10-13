@@ -3,9 +3,8 @@ import { OpenAI } from "openai";
 import { PrismaClient } from "@prisma/client";
 import { timetableSchema } from "@/lib/schemas/timetableSchema";
 import {
-  generatePhase1Prompt,
   generatePhase2Prompt,
-  generateSchedulingInfo,
+  generateProgressivePrompt,
 } from "./prompts";
 import type { z } from "zod";
 import { ChatCompletionCreateParamsNonStreaming } from "openai/resources/index.mjs";
@@ -31,304 +30,6 @@ type ValidatedTimetable = z.infer<typeof timetableSchema>;
 const calculateUtilization = (total: number, capacity: number) => {
   return `${((total / capacity) * 100).toFixed(1)}%`;
 };
-
-// Helper function to check if courses can be paired
-const canBePaired = (course1: any, course2: any, roomCapacity: number) => {
-  return course1.students + course2.students <= roomCapacity;
-};
-
-// Helper to auto-correct AI timetable to satisfy capacities and constraints
-function autoCorrectTimetable(
-  raw: any,
-  dbCourses: { code: string; students: number; department?: string }[]
-) {
-  const RED_CAP = 96;
-  const BLUE_CAP = 192;
-
-  const codeToMeta = new Map<
-    string,
-    { students: number; department?: string }
-  >();
-  for (const c of dbCourses)
-    codeToMeta.set(c.code, { students: c.students, department: c.department });
-
-  // Deep clone sessions to avoid mutating original object
-  const sessions = (raw.sessions || []).map((s: any) => ({
-    session: s.session,
-    date: s.date,
-    red: { courses: [...(s.red?.courses || [])], total: 0, utilization: "0%" },
-    blue: {
-      courses: [...(s.blue?.courses || [])],
-      total: 0,
-      utilization: "0%",
-    },
-  }));
-
-  const unscheduled: { code: string; students: number; department?: string }[] =
-    [];
-
-  const getDeptSetForRed = (courses: { code: string }[]) => {
-    const set = new Set<string>();
-    for (const c of courses) {
-      const meta = codeToMeta.get(c.code);
-      if (meta?.department) set.add(meta.department);
-    }
-    return set;
-  };
-
-  const recomputeRoom = (
-    room: {
-      courses: { code: string; students?: number }[];
-      total: number;
-      utilization: string;
-    },
-    cap: number
-  ) => {
-    // Normalize students from DB
-    for (const rc of room.courses) {
-      const meta = codeToMeta.get(rc.code);
-      rc.students = meta?.students ?? rc.students ?? 0;
-    }
-    room.total = room.courses.reduce((sum, c) => sum + (c.students || 0), 0);
-    room.utilization = calculateUtilization(room.total, cap);
-  };
-
-  // First pass: recompute totals, eject overflow courses to unscheduled
-  for (const s of sessions) {
-    recomputeRoom(s.red, RED_CAP);
-    recomputeRoom(s.blue, BLUE_CAP);
-
-    // Red seat can have any courses as long as total ≤ 96 (no department restriction)
-
-    // If red over capacity, try move smallest from red to blue if blue can take
-    if (s.red.total > RED_CAP) {
-      // sort ascending by students
-      s.red.courses.sort(
-        (a: { students?: number }, b: { students?: number }) =>
-          (a.students || 0) - (b.students || 0)
-      );
-      while (s.red.total > RED_CAP && s.red.courses.length > 0) {
-        const candidate = s.red.courses.shift()!;
-        const newBlueTotal = s.blue.total + (candidate.students || 0);
-        if (newBlueTotal <= BLUE_CAP) {
-          s.blue.courses.push(candidate);
-          recomputeRoom(s.blue, BLUE_CAP);
-        } else {
-          unscheduled.push({
-            code: candidate.code,
-            students: candidate.students || 0,
-            department: codeToMeta.get(candidate.code)?.department,
-          });
-        }
-        recomputeRoom(s.red, RED_CAP);
-      }
-    }
-
-    // If blue over capacity, move smallest to unscheduled (we'll place later)
-    if (s.blue.total > BLUE_CAP) {
-      s.blue.courses.sort(
-        (a: { students?: number }, b: { students?: number }) =>
-          (a.students || 0) - (b.students || 0)
-      );
-      while (s.blue.total > BLUE_CAP && s.blue.courses.length > 0) {
-        const moved = s.blue.courses.shift()!;
-        unscheduled.push({
-          code: moved.code,
-          students: moved.students || 0,
-          department: codeToMeta.get(moved.code)?.department,
-        });
-        recomputeRoom(s.blue, BLUE_CAP);
-      }
-    }
-  }
-
-  // Build sets to avoid duplicates
-  const scheduledCodes = new Set<string>();
-  for (const s of sessions) {
-    for (const c of s.red.courses) scheduledCodes.add(c.code);
-    for (const c of s.blue.courses) scheduledCodes.add(c.code);
-  }
-  // Add any missing DB courses into unscheduled
-  for (const dc of dbCourses) {
-    if (!scheduledCodes.has(dc.code))
-      unscheduled.push({
-        code: dc.code,
-        students: dc.students,
-        department: dc.department ?? undefined,
-      });
-  }
-
-  // Greedy placement for unscheduled into existing sessions
-  const tryPlace = (course: {
-    code: string;
-    students: number;
-    department?: string;
-  }) => {
-    // Try red first (any department allowed)
-    for (const s of sessions) {
-      if (s.red.total + course.students <= RED_CAP) {
-        s.red.courses.push({ code: course.code, students: course.students });
-        recomputeRoom(s.red, RED_CAP);
-        return true;
-      }
-    }
-    // Try blue as fallback
-    for (const s of sessions) {
-      if (s.blue.total + course.students <= BLUE_CAP) {
-        s.blue.courses.push({ code: course.code, students: course.students });
-        recomputeRoom(s.blue, BLUE_CAP);
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // Place unscheduled, largest first to reduce risk of overflows later
-  unscheduled.sort(
-    (a: { students: number }, b: { students: number }) =>
-      b.students - a.students
-  );
-  const stillUnplaced: typeof unscheduled = [];
-  for (const c of unscheduled) {
-    if (!tryPlace(c)) stillUnplaced.push(c);
-  }
-
-  if (stillUnplaced.length > 0) {
-    const list = stillUnplaced
-      .map((c) => `${c.code}(${c.students})`)
-      .join(", ");
-    throw new Error(`Unable to place some courses within capacities: ${list}`);
-  }
-
-  // Final recompute of totals and utilization
-  for (const s of sessions) {
-    recomputeRoom(s.red, RED_CAP);
-    recomputeRoom(s.blue, BLUE_CAP);
-    
-    // CRITICAL: Final capacity validation - MUST NEVER EXCEED
-    if (s.red.total > RED_CAP) {
-      throw new Error(`CAPACITY VIOLATION: RED room in ${s.session} has ${s.red.total} students (max 96). Courses: ${s.red.courses.map((c: any) => `${c.code}(${c.students})`).join(', ')}`);
-    }
-    if (s.blue.total > BLUE_CAP) {
-      throw new Error(`CAPACITY VIOLATION: BLUE room in ${s.session} has ${s.blue.total} students (max 192). Courses: ${s.blue.courses.map((c: any) => `${c.code}(${c.students})`).join(', ')}`);
-    }
-  }
-
-  return { sessions };
-}
-
-// Combine multiple timetables into one master timetable
-function combineTimetables(timetables: any[], sessionsMeta: any[]) {
-  const RED_CAP = 96;
-  const BLUE_CAP = 192;
-  
-  // Create empty sessions for all available time slots
-  const masterSessions = sessionsMeta.map(meta => ({
-    session: meta.session,
-    date: meta.date,
-    red: { courses: [], total: 0, utilization: "0%" },
-    blue: { courses: [], total: 0, utilization: "0%" }
-  }));
-  
-  // Track which courses are already placed
-  const placedCourses = new Set<string>();
-  
-  // Helper to update room totals
-  const updateRoomTotals = (room: any, cap: number) => {
-    room.total = room.courses.reduce((sum: number, c: any) => sum + (c.students || 0), 0);
-    room.utilization = calculateUtilization(room.total, cap);
-  };
-  
-  // Process each timetable and merge courses into master sessions
-  for (const timetable of timetables) {
-    for (const session of timetable.sessions || []) {
-      // Find matching master session
-      const masterSession = masterSessions.find(ms => ms.session === session.session);
-      if (!masterSession) continue;
-      
-      // Add red room courses
-      for (const course of session.red.courses || []) {
-        if (placedCourses.has(course.code)) continue; // Skip duplicates
-        
-        // Check if course fits in red room
-        if (course.students <= 96 && masterSession.red.total + course.students <= RED_CAP) {
-          (masterSession.red.courses as any[]).push(course);
-          updateRoomTotals(masterSession.red, RED_CAP);
-          placedCourses.add(course.code);
-        } else if (masterSession.blue.total + course.students <= BLUE_CAP) {
-          // Try blue room if red doesn't fit
-          (masterSession.blue.courses as any[]).push(course);
-          updateRoomTotals(masterSession.blue, BLUE_CAP);
-          placedCourses.add(course.code);
-        }
-      }
-      
-      // Add blue room courses
-      for (const course of session.blue.courses || []) {
-        if (placedCourses.has(course.code)) continue; // Skip duplicates
-        
-        if (masterSession.blue.total + course.students <= BLUE_CAP) {
-          (masterSession.blue.courses as any[]).push(course);
-          updateRoomTotals(masterSession.blue, BLUE_CAP);
-          placedCourses.add(course.code);
-        }
-      }
-    }
-  }
-  
-  return { sessions: masterSessions };
-}
-
-// Create a simple fallback timetable for a chunk when AI fails
-function createSimpleChunkTimetable(chunk: any[], sessionsMeta: any[]) {
-  const RED_CAP = 96;
-  const BLUE_CAP = 192;
-  const sessions: any[] = [];
-  
-  // Sort courses by size (largest first)
-  const sortedCourses = [...chunk].sort((a, b) => b.students - a.students);
-  
-  let courseIndex = 0;
-  let sessionIndex = 0;
-  
-  while (courseIndex < sortedCourses.length && sessionIndex < sessionsMeta.length) {
-    const sessionMeta = sessionsMeta[sessionIndex];
-    const session = {
-      session: sessionMeta.session,
-      date: sessionMeta.date,
-      red: { courses: [], total: 0, utilization: "0%" },
-      blue: { courses: [], total: 0, utilization: "0%" }
-    };
-    
-    // Fill RED room first (courses ≤ 96 students)
-    while (courseIndex < sortedCourses.length && 
-           sortedCourses[courseIndex].students <= 96 && 
-           session.red.total + sortedCourses[courseIndex].students <= RED_CAP) {
-      const course = sortedCourses[courseIndex];
-      (session.red.courses as any[]).push({ code: course.code, students: course.students });
-      session.red.total += course.students;
-      courseIndex++;
-    }
-    
-    // Fill BLUE room (any remaining courses that fit)
-    while (courseIndex < sortedCourses.length && 
-           session.blue.total + sortedCourses[courseIndex].students <= BLUE_CAP) {
-      const course = sortedCourses[courseIndex];
-      (session.blue.courses as any[]).push({ code: course.code, students: course.students });
-      session.blue.total += course.students;
-      courseIndex++;
-    }
-    
-    // Update utilization
-    session.red.utilization = calculateUtilization(session.red.total, RED_CAP);
-    session.blue.utilization = calculateUtilization(session.blue.total, BLUE_CAP);
-    
-    sessions.push(session);
-    sessionIndex++;
-  }
-  
-  return { sessions };
-}
 
 export async function POST(request: Request) {
   try {
@@ -367,7 +68,20 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
+    
+    // Sort courses: LARGEST FIRST (helps with placement)
+    dbCourses.sort((a, b) => b.students - a.students);
+    
+    const largeCourseCount = dbCourses.filter(c => c.students > 96).length;
+    const mediumCourseCount = dbCourses.filter(c => c.students >= 65 && c.students <= 96).length;
+    const smallCourseCount = dbCourses.filter(c => c.students < 65).length;
+    
+    console.log('\n📊 Total courses to schedule:', dbCourses.length);
+    console.log(`   Large (>96): ${largeCourseCount} courses`);
+    console.log(`   Medium (65-96): ${mediumCourseCount} courses`);
+    console.log(`   Small (<65): ${smallCourseCount} courses`);
+    console.log(`   Largest: ${dbCourses[0].code}(${dbCourses[0].students})`);
+    console.log(`   Smallest: ${dbCourses[dbCourses.length-1].code}(${dbCourses[dbCourses.length-1].students})`);
 
     const start = new Date(startDate);
     const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -392,82 +106,94 @@ export async function POST(request: Request) {
       }
     }
 
-    const sessionDetails = sessionsMeta
-      .map((s) => `- ${s.session} (${s.date})`)
-      .join("\n");
-
-    // BATCHING APPROACH: Split courses into manageable chunks
-    const CHUNK_SIZE = 15; // Process 15 courses at a time (smaller for better reliability)
+    // PROGRESSIVE AI BUILDING: Split into chunks of 5 (smaller = easier for AI)
+    const CHUNK_SIZE = 5;
     const courseChunks = [];
     
     for (let i = 0; i < dbCourses.length; i += CHUNK_SIZE) {
       courseChunks.push(dbCourses.slice(i, i + CHUNK_SIZE));
     }
     
-    console.log(`Processing ${dbCourses.length} courses in ${courseChunks.length} chunks of ${CHUNK_SIZE} each`);
+    console.log(`\n🚀 PROGRESSIVE AI TIMETABLE GENERATION`);
+    console.log(`Processing ${dbCourses.length} courses in ${courseChunks.length} chunks of ${CHUNK_SIZE} courses each`);
+    console.log(`Strategy: Small chunks (5 courses) with explicit placement instructions\n`);
 
-    const allTimetables = [];
+    // Initialize master timetable with empty sessions
+    let masterTimetable = {
+      sessions: sessionsMeta.map(meta => ({
+        session: meta.session,
+        date: meta.date,
+        red: { courses: [], total: 0, utilization: "0%" },
+        blue: { courses: [], total: 0, utilization: "0%" }
+      }))
+    };
     
-    // Process each chunk with AI
+    // Process each chunk progressively - AI builds on previous results
     for (let chunkIndex = 0; chunkIndex < courseChunks.length; chunkIndex++) {
       const chunk = courseChunks[chunkIndex];
-      console.log(`Processing chunk ${chunkIndex + 1}/${courseChunks.length} with ${chunk.length} courses`);
+      const isFirstChunk = chunkIndex === 0;
       
-      const chunkPhase1Prompt = generatePhase1Prompt(chunk, totalSessions, sessionDetails);
-      const chunkSchedulingInfo = generateSchedulingInfo(chunk, totalSessions);
+      const largeInChunk = chunk.filter(c => c.students > 96).length;
+      const mediumInChunk = chunk.filter(c => c.students >= 65 && c.students <= 96).length;
+      const smallInChunk = chunk.filter(c => c.students < 65).length;
       
-      const chunkMessages = [
-        {
-          role: "system",
-          content: "You are an expert academic scheduling system. Your task is to create efficient exam timetables that maximize room usage and follow all constraints.",
-        },
-        {
-          role: "user",
-          content: chunkPhase1Prompt + chunkSchedulingInfo,
-        },
-      ] as ChatCompletionCreateParamsNonStreaming["messages"];
+      console.log(`\n📦 Chunk ${chunkIndex + 1}/${courseChunks.length}: Adding ${chunk.length} courses`);
+      console.log(`   Large: ${largeInChunk}, Medium: ${mediumInChunk}, Small: ${smallInChunk}`);
+      console.log(`   Courses: ${chunk.map(c => `${c.code}(${c.students})`).join(', ')}`);
       
-      const completion1 = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
-        messages: chunkMessages,
-        temperature: 0.1,
-        max_tokens: 2000, // Smaller max_tokens for smaller chunks
-      });
-      
-      const planningResponse = completion1.choices[0]?.message?.content;
-      if (!planningResponse || !planningResponse.includes("PHASE 2 READY")) {
-        throw new Error(`Planning phase failed for chunk ${chunkIndex + 1}`);
-      }
-
       // Generate timetable for this chunk
-      let chunkTimetable = null;
+      let updatedTimetable = null;
+      const attemptErrors: string[] = []; // Track what went wrong in each attempt
+      
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          const phase2Messages = [
+          // Generate prompt based on whether this is first chunk or building on existing
+          let promptContent;
+          if (isFirstChunk) {
+            // First chunk: Start fresh with empty timetable
+            promptContent = generatePhase2Prompt(chunk, sessionsMeta);
+          } else {
+            // Subsequent chunks: Build on existing timetable
+            promptContent = generateProgressivePrompt(
+              chunk,
+              masterTimetable,
+              sessionsMeta,
+              chunkIndex + 1,
+              courseChunks.length
+            );
+          }
+          
+          const messages = [
             {
               role: "system",
-              content: "You are a timetable generation expert. Generate a valid JSON timetable following the provided rules exactly.",
-            },
-            {
-              role: "assistant",
-              content: planningResponse,
+              content: `You are an expert exam timetable scheduler. Generate valid JSON timetables following all capacity and scheduling rules.
+
+CRITICAL RULES:
+1. RED room max = 96 students. NEVER place any single course with >96 students in RED room.
+2. BLUE room max = 192 students. Large courses (>96 students) MUST be ALONE in BLUE room.
+3. Before placing a course, check its size:
+   - If course > 96 students → ONLY BLUE room, ALONE
+   - If course ≤ 96 students → Try RED first, then BLUE
+4. ALWAYS return valid JSON. No text, no markdown, just JSON.`,
             },
             {
               role: "user",
-              content: generatePhase2Prompt(chunk, sessionsMeta),
+              content: promptContent,
             },
           ] as ChatCompletionCreateParamsNonStreaming["messages"];
           
-          const completion2 = await openai.chat.completions.create({
+          const completion = await openai.chat.completions.create({
             model: process.env.OPENAI_MODEL || "gpt-3.5-turbo-0125",
-            messages: phase2Messages,
-            temperature: 0.1,
-            max_tokens: 2000,
+            messages: messages,
+            temperature: 0.1, // Low temperature for consistent, rule-following behavior
+            max_tokens: 4096, // Maximum allowed for this model
           });
           
-          const content = completion2.choices[0]?.message?.content;
+          const content = completion.choices[0]?.message?.content;
           if (!content) {
-            console.warn(`Chunk ${chunkIndex + 1} attempt ${attempt}: Empty response`);
+            const error = `Empty response from AI`;
+            console.warn(`   ⚠️  Attempt ${attempt}: ${error}`);
+            attemptErrors.push(`Attempt ${attempt}: ${error}`);
             continue;
           }
           
@@ -476,37 +202,189 @@ export async function POST(request: Request) {
           let jsonContent = jsonMatch ? jsonMatch[1] : content;
           jsonContent = jsonContent.trim();
           
-          console.log(`Chunk ${chunkIndex + 1} attempt ${attempt}: Trying to parse JSON (length: ${jsonContent.length})`);
+          // Check if AI returned text instead of JSON
+          if (jsonContent.startsWith('#') || jsonContent.startsWith('PHASE') || jsonContent.includes('### Plan')) {
+            const error = `AI returned text/markdown instead of JSON (starts with: ${jsonContent.substring(0, 50)}...)`;
+            console.warn(`   ⚠️  Attempt ${attempt}: ${error}`);
+            attemptErrors.push(`Attempt ${attempt}: ${error}`);
+            continue;
+          }
+          
+          console.log(`   🔍 Attempt ${attempt}: Parsing JSON (${jsonContent.length} chars)`);
           
           const parsed = JSON.parse(jsonContent);
-          const corrected = autoCorrectTimetable(parsed, chunk.map(c => ({
-            code: c.code,
-            students: c.students,
-            department: c.department ?? undefined
-          })));
           
-          chunkTimetable = corrected;
+          // Basic validation: Check capacities
+          let capacityViolation = false;
+          let violationDetails = '';
+          for (const session of parsed.sessions || []) {
+            const redCourses = session.red?.courses || [];
+            const blueCourses = session.blue?.courses || [];
+            
+            // CRITICAL: Check if any RED course is >96 students (individual course check)
+            for (const course of redCourses) {
+              if (course.students > 96) {
+                violationDetails = `Course ${course.code} with ${course.students} students placed in RED room (max 96 per course). This course MUST be in BLUE room alone.`;
+                console.warn(`   ⚠️  Attempt ${attempt}: ${violationDetails}`);
+                attemptErrors.push(`Attempt ${attempt}: ${violationDetails}`);
+                capacityViolation = true;
+                break;
+              }
+            }
+            if (capacityViolation) break;
+            
+            const redTotal = redCourses.reduce((sum: number, c: any) => sum + (c.students || 0), 0);
+            const blueTotal = blueCourses.reduce((sum: number, c: any) => sum + (c.students || 0), 0);
+            
+            if (redTotal > 96) {
+              violationDetails = `RED room total capacity exceeded in ${session.session}: ${redTotal}/96 (courses: ${redCourses.map((c: any) => `${c.code}(${c.students})`).join(', ')})`;
+              console.warn(`   ⚠️  Attempt ${attempt}: ${violationDetails}`);
+              attemptErrors.push(`Attempt ${attempt}: ${violationDetails}`);
+              capacityViolation = true;
+              break;
+            }
+            if (blueTotal > 192) {
+              violationDetails = `BLUE room capacity exceeded in ${session.session}: ${blueTotal}/192`;
+              console.warn(`   ⚠️  Attempt ${attempt}: ${violationDetails}`);
+              attemptErrors.push(`Attempt ${attempt}: ${violationDetails}`);
+              capacityViolation = true;
+              break;
+            }
+            
+            // Check large course alone rule
+            if (blueCourses.length > 1) {
+              const hasLarge = blueCourses.some((c: any) => c.students > 96);
+              if (hasLarge) {
+                violationDetails = `Large course not alone in BLUE room in ${session.session}`;
+                console.warn(`   ⚠️  Attempt ${attempt}: ${violationDetails}`);
+                attemptErrors.push(`Attempt ${attempt}: ${violationDetails}`);
+                capacityViolation = true;
+                break;
+              }
+            }
+          }
+          
+          if (capacityViolation) {
+            console.warn(`   ⚠️  Attempt ${attempt}: Capacity violation detected. Retrying...`);
+            continue;
+          }
+          
+          // Check if expected courses from current and previous chunks are present
+          const expectedCourses = new Set<string>();
+          for (let i = 0; i <= chunkIndex; i++) {
+            for (const course of courseChunks[i]) {
+              expectedCourses.add(course.code);
+            }
+          }
+          
+          const scheduledCourses = new Set<string>();
+          for (const session of parsed.sessions || []) {
+            for (const course of (session.red?.courses || [])) {
+              scheduledCourses.add(course.code);
+            }
+            for (const course of (session.blue?.courses || [])) {
+              scheduledCourses.add(course.code);
+            }
+          }
+          
+          const missingCourses = Array.from(expectedCourses).filter(code => !scheduledCourses.has(code));
+          if (missingCourses.length > 0) {
+            const error = `Missing ${missingCourses.length} courses: ${missingCourses.slice(0, 10).join(', ')}${missingCourses.length > 10 ? '...' : ''}`;
+            console.warn(`   ⚠️  Attempt ${attempt}: ${error}`);
+            attemptErrors.push(`Attempt ${attempt}: ${error}`);
+            if (attempt < 3) {
+              console.warn(`   🔄  Retrying with stronger emphasis on including ALL courses...`);
+            }
+            continue;
+          }
+          
+          // Check for duplicate courses
+          const allScheduledCodesArray: string[] = [];
+          for (const session of parsed.sessions || []) {
+            for (const course of (session.red?.courses || [])) {
+              allScheduledCodesArray.push(course.code);
+            }
+            for (const course of (session.blue?.courses || [])) {
+              allScheduledCodesArray.push(course.code);
+            }
+          }
+          const duplicates = allScheduledCodesArray.filter((code, index) => 
+            allScheduledCodesArray.indexOf(code) !== index
+          );
+          if (duplicates.length > 0) {
+            const error = `Found duplicate courses: ${[...new Set(duplicates)].slice(0, 5).join(', ')}`;
+            console.warn(`   ⚠️  Attempt ${attempt}: ${error}`);
+            attemptErrors.push(`Attempt ${attempt}: ${error}`);
+            continue;
+          }
+          
+          updatedTimetable = parsed;
+          console.log(`   ✅ Successfully processed chunk ${chunkIndex + 1}`);
+          console.log(`   📊 Courses scheduled: ${scheduledCourses.size}/${dbCourses.length}`);
           break; // Success!
         } catch (err) {
-          console.warn(`Chunk ${chunkIndex + 1} attempt ${attempt} failed:`, err);
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.warn(`   ❌ Attempt ${attempt} failed:`, errorMsg);
+          attemptErrors.push(`Attempt ${attempt}: Exception - ${errorMsg}`);
           if (attempt === 3) {
-            console.error(`Chunk ${chunkIndex + 1} failed completely, creating fallback timetable for this chunk`);
-            // Create a simple fallback timetable for this chunk
-            chunkTimetable = createSimpleChunkTimetable(chunk, sessionsMeta);
-            break;
+            const detailedError = `Chunk ${chunkIndex + 1} failed after 3 attempts. Details:\n${attemptErrors.join('\n')}`;
+            throw new Error(detailedError);
           }
         }
       }
       
-      if (!chunkTimetable) {
-        throw new Error(`No valid timetable generated for chunk ${chunkIndex + 1}`);
+      if (!updatedTimetable) {
+        const detailedError = `No valid timetable generated for chunk ${chunkIndex + 1}. Errors:\n${attemptErrors.join('\n')}`;
+        throw new Error(detailedError);
       }
       
-      allTimetables.push(chunkTimetable);
+      // Update master timetable with this chunk's result
+      masterTimetable = updatedTimetable;
     }
     
-    // Combine all chunk timetables into one master timetable
-    const masterTimetable = combineTimetables(allTimetables, sessionsMeta);
+    console.log(`\n✨ Progressive generation complete!`);
+    
+    // Final validation: Check ALL courses are scheduled
+    const allScheduledCourses = new Set<string>();
+    for (const session of masterTimetable.sessions) {
+      for (const course of (session.red?.courses || [])) {
+        allScheduledCourses.add((course as any).code);
+      }
+      for (const course of (session.blue?.courses || [])) {
+        allScheduledCourses.add((course as any).code);
+      }
+    }
+    
+    const allExpectedCourses = new Set(dbCourses.map(c => c.code));
+    const finalMissing = Array.from(allExpectedCourses).filter(code => !allScheduledCourses.has(code));
+    
+    if (finalMissing.length > 0) {
+      console.error(`\n❌ FINAL VALIDATION FAILED: ${finalMissing.length} courses not scheduled:`);
+      console.error(`   Missing: ${finalMissing.join(', ')}`);
+      throw new Error(`Final timetable is missing ${finalMissing.length} courses: ${finalMissing.slice(0, 10).join(', ')}${finalMissing.length > 10 ? '...' : ''}`);
+    }
+    
+    console.log(`\n✅ FINAL VALIDATION PASSED: All ${dbCourses.length} courses scheduled!`);
+    
+    // Log final statistics
+    let totalRedUsage = 0;
+    let totalBlueUsage = 0;
+    let sessionsWithBothRooms = 0;
+    
+    for (const session of masterTimetable.sessions) {
+      const redCount = session.red?.courses?.length || 0;
+      const blueCount = session.blue?.courses?.length || 0;
+      totalRedUsage += redCount;
+      totalBlueUsage += blueCount;
+      if (redCount > 0 && blueCount > 0) sessionsWithBothRooms++;
+    }
+    
+    console.log(`\n📊 FINAL STATISTICS:`);
+    console.log(`   Total sessions: ${sessionsMeta.length}`);
+    console.log(`   Sessions used: ${masterTimetable.sessions.filter((s: any) => (s.red.courses.length + s.blue.courses.length) > 0).length}`);
+    console.log(`   RED room usage: ${totalRedUsage} course slots`);
+    console.log(`   BLUE room usage: ${totalBlueUsage} course slots`);
+    console.log(`   Sessions using both rooms: ${sessionsWithBothRooms}`);
     
     // Validate the final combined timetable
     const validated = timetableSchema.parse(masterTimetable);
