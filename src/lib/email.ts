@@ -1,8 +1,13 @@
 import { Resend } from 'resend';
 import crypto from 'crypto';
 
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend client only when needed
+const getResend = () => {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY environment variable is not set");
+  }
+  return new Resend(process.env.RESEND_API_KEY);
+};
 
 // Your verified email address for testing
 const VERIFIED_EMAIL = 'paulobinna493@gmail.com';  // Updated to correct address
@@ -30,6 +35,7 @@ export async function sendVerificationEmail(
     const emailTo = VERIFIED_EMAIL;  // Always send to verified email in development
     const fromEmail = process.env.SMTP_FROM || 'onboarding@resend.dev';
 
+    const resend = getResend();
     const result = await resend.emails.send({
       from: fromEmail,
       to: emailTo,
@@ -100,4 +106,4 @@ export function generateVerificationToken(): { token: string; expiry: Date } {
   return { token, expiry };
 }
 
-export { resend };
+export { getResend };
