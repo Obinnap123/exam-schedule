@@ -28,5 +28,5 @@ export const timetableSchema = z.object({
         }),
       })
     )
-    .max(30),
+    .max(100), // Support up to 10 weeks (10 weeks × 5 days × 2 sessions = 100)
 });
