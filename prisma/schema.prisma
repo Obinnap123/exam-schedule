@@ -17,7 +17,13 @@ model User {
   verificationToken       String?
   verificationTokenExpiry DateTime?
   rememberToken           String?
+  
   chats                   Chat[]
+  courses                 Course[]
+  halls                   Hall[]
+  supervisors             Supervisor[]
+  timetables              Timetable[]
+
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 }
@@ -28,8 +34,12 @@ model Course {
   title      String @default("Untitled")
   students   Int
   duration   Int?
-  level      Int? // <-- add this
-  department String? // <-- add this
+  level      Int?
+  department String?
+  
+  userId     Int
+  user       User        @relation(fields: [userId], references: [id])
+  
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   timetables Timetable[]
@@ -39,6 +49,10 @@ model Hall {
   id         Int         @id @default(autoincrement())
   name       String      @unique
   capacity   Int
+  
+  userId     Int
+  user       User        @relation(fields: [userId], references: [id])
+
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   timetables Timetable[]
@@ -46,10 +60,13 @@ model Hall {
 
 model Supervisor {
   id         Int     @id @default(autoincrement())
-  fullName   String // ✅ Change from `name` to `fullName`
+  fullName   String
   email      String  @unique
   phone      String?
   department String?
+
+  userId     Int
+  user       User    @relation(fields: [userId], references: [id])
 
   timetables Timetable[] @relation("TimetableSupervisors")
 }
@@ -57,7 +74,7 @@ model Supervisor {
 model Chat {
   id        Int           @id @default(autoincrement())
   userId    Int
-  user      User          @relation(fields: [userId], references: [id]) // <-- Add this line
+  user      User          @relation(fields: [userId], references: [id])
   title     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -68,7 +85,7 @@ model ChatMessage {
   id        Int      @id @default(autoincrement())
   chatId    Int
   role      String // "user" or "assistant"
-  content   String // The message content
+  content   String
   createdAt DateTime @default(now())
 
   chat Chat @relation(fields: [chatId], references: [id])
@@ -77,7 +94,7 @@ model ChatMessage {
 model Timetable {
   id                 Int          @id @default(autoincrement())
   day                String
-  date               String // ✅ Make sure this line exists
+  date               String
   timeSlot           String
   startTime          String
   endTime            String
@@ -88,4 +105,7 @@ model Timetable {
   hall               Hall?        @relation(fields: [hallId], references: [id])
   hallId             Int?
   supervisors        Supervisor[] @relation("TimetableSupervisors")
+
+  userId             Int
+  user               User         @relation(fields: [userId], references: [id])
 }

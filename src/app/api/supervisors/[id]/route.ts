@@ -8,15 +8,35 @@ const prisma = new PrismaClient();
 
 // DELETE: Delete a supervisor by ID
 export async function DELETE(
-  _: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params
     const params = await context.params;
     const { id } = params;
+    const userId = request.headers.get("X-User-Id");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const parsedId = parseInt(id, 10);
+    if (isNaN(parsedId)) {
+      return NextResponse.json({ error: "Invalid supervisor ID." }, { status: 400 });
+    }
+
+    // Verify ownership
+    const supervisor = await prisma.supervisor.findFirst({
+      where: { id: parsedId, userId: parseInt(userId) }
+    });
+
+    if (!supervisor) {
+      return NextResponse.json({ error: "Supervisor not found or unauthorized" }, { status: 404 });
+    }
 
     await prisma.supervisor.delete({
-      where: { id },
+      where: { id: parsedId },
     });
 
     return NextResponse.json(
@@ -55,11 +75,32 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await the params
     const params = await context.params;
     const { id } = params;
+    const userId = request.headers.get("X-User-Id");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
 
+    const parsedId = parseInt(id, 10);
+    if (isNaN(parsedId)) {
+      return NextResponse.json({ error: "Invalid supervisor ID." }, { status: 400 });
+    }
+
     const { fullName, email, phone, department } = body;
+
+    // Verify ownership
+    const supervisor = await prisma.supervisor.findFirst({
+      where: { id: parsedId, userId: parseInt(userId) }
+    });
+
+    if (!supervisor) {
+      return NextResponse.json({ error: "Supervisor not found or unauthorized" }, { status: 404 });
+    }
 
     if (!fullName && !email && !phone && !department) {
       return NextResponse.json(
@@ -84,7 +125,7 @@ export async function PATCH(
     if (department) updateData.department = department;
 
     const updatedSupervisor = await prisma.supervisor.update({
-      where: { id },
+      where: { id: parsedId },
       data: updateData,
     });
 

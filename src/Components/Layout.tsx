@@ -1,15 +1,13 @@
 "use client";
-import React, { useState } from "react";
-import Header from "./Header";
+import React, { useState, useMemo } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
 
 function Layout({ children }: { children: React.ReactNode }) {
   // Check if we're on the generate page
-  const isGeneratePage = usePathname().includes('/generate');
   const pathname = usePathname();
+  const isGeneratePage = pathname.includes("/generate");
 
   // State to manage sidebar visibility
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -21,45 +19,48 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   // Determine page title dynamically
   const pageTitle = useMemo(() => {
-    if (pathname.includes("halls")) return "Halls";
-    if (pathname.includes("courses")) return "Courses";
+    if (pathname.includes("halls")) return "Examination Halls";
+    if (pathname.includes("courses")) return "Courses Management";
     if (pathname.includes("supervisors")) return "Supervisors";
     if (pathname.includes("generate")) return "Generate Timetable";
-    return "Dashboard";
+    return "Dashboard Overview";
   }, [pathname]);
 
   // If we're on the generate page, render without dashboard layout
+  // (Or maybe we want to keep it? The requirement says "Improve visual hierarchy". 
+  // Usually generator is a full screen tool, but if it was excluded before, I'll keep excluding it or wrap it minimally.
+  // The original code returned <>{children}</> for isGeneratePage. I will stick to that to avoid breaking flow,
+  // but I'll add a check to make sure it's intentional. The comment says "without dashboard layout".)
   if (isGeneratePage) {
-    return <>{children}</>;
+    return <div className="min-h-screen bg-slate-50">{children}</div>;
   }
 
   return (
-    <>
-      {/* Header */}
-      <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar */}
+      <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-      {/* Main Content */}
-      <div className="flex">
-        {/* Sidebar */}
-        <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-screen w-full relative">
+        {/* Topbar */}
+        <Topbar title={pageTitle} onMenuClick={toggleSidebar} />
 
-        {/* Content Area */}
-        <div className="flex-1 flex flex-col w-[100%] lg:max-w-[700px] xl:max-w-[970px] [@media(min-width:1440px)]:max-w-[1100px] mx-auto">
-          <Topbar title={pageTitle} />
-          <main className="p-4 md:p-6 min-h-[100dvh] bg-white my-[30px] rounded-[5px]">
+        {/* Page Content */}
+        <main className="flex-1 p-6 lg:p-10 overflow-x-hidden">
+          <div className="max-w-7xl mx-auto w-full animate-fade-in">
             {children}
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
 
-      {/* Overlay (optional, to dim the background when the sidebar is open on mobile) */}
+      {/* Mobile Overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed top-0 left-0 w-full h-full bg-black opacity-50 z-40 md:hidden"
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
           onClick={toggleSidebar}
-        ></div>
+        />
       )}
-    </>
+    </div>
   );
 }
 

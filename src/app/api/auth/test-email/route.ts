@@ -10,13 +10,13 @@ export async function GET(request: Request) {
     const testEmail = searchParams.get('email');
 
     // console.log('Testing email configuration...', {
-      environment: {
-        NODE_ENV: process.env.NODE_ENV,
-        HAS_RESEND_KEY: !!process.env.RESEND_API_KEY,
-        SMTP_FROM: process.env.SMTP_FROM,
-        APP_URL: process.env.NEXT_PUBLIC_APP_URL
-      }
-    });
+    //   environment: {
+    //     NODE_ENV: process.env.NODE_ENV,
+    //     HAS_RESEND_KEY: !!process.env.RESEND_API_KEY,
+    //     SMTP_FROM: process.env.SMTP_FROM,
+    //     APP_URL: process.env.NEXT_PUBLIC_APP_URL
+    //   }
+    // });
 
     if (!process.env.RESEND_API_KEY) {
       throw new Error('Missing RESEND_API_KEY environment variable');
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     // Always send to verified email
     const emailTo = VERIFIED_EMAIL;
     const fromEmail = process.env.SMTP_FROM || 'onboarding@resend.dev';
-    
+
     // Send test email
     const result = await resend.emails.send({
       from: fromEmail,
@@ -94,10 +94,10 @@ export async function GET(request: Request) {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to send test email',
       details: error,
-      note: process.env.NODE_ENV === 'development' 
+      note: process.env.NODE_ENV === 'development'
         ? 'All emails are being sent to the verified email address in development mode.'
         : undefined
-    }, { 
+    }, {
       status: 500
     });
   }

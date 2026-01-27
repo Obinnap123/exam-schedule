@@ -1,27 +1,49 @@
 "use client";
 
 import { useState, Fragment } from "react";
+import { useRouter } from "next/navigation";
 import CSVUpload from "@/Components/CSVUpload";
-import { useCourseContext, ParsedCourse } from "@/context/CourseContext";
+import { useCourseContext } from "@/context/CourseContext";
 import { downloadCSV, downloadJSON } from "@/lib/utils";
-
 import Modal from "@/Components/Modal";
+import { Calendar, AlertCircle, CheckCircle2, FileUp, Download, Clock } from "lucide-react";
 
 export default function GenerateTimetable() {
-  const { courses, addCourses } = useCourseContext();
+  const { addCourses } = useCourseContext();
+  const router = useRouter();
+
   const [alertMessage, setAlertMessage] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showModal, setShowModal] = useState(false); // ✅ new state
+  const [showModal, setShowModal] = useState(false);
   const [timetable, setTimetable] = useState<any[]>([]);
   const [generationParams, setGenerationParams] = useState({
     startDate: "",
     weeks: 3,
   });
 
+  const getHeaders = () => {
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return {};
+    const user = JSON.parse(storedUser);
+    return {
+      "Content-Type": "application/json",
+      "X-User-Id": user.id.toString()
+    };
+  };
+
   const handleFileParsed = async (parsedData: any[]) => {
     setAlertMessage("Processing courses...");
+    setIsSuccess(false);
 
     try {
+      const headers = getHeaders();
+      // @ts-ignore - Headers check
+      if (!headers["X-User-Id"]) {
+        router.push("/login");
+        return;
+      }
+
       const processedCourses = parsedData
         .map((course) => ({
           code: course.code || course.courseCode || "",
@@ -38,7 +60,7 @@ export default function GenerateTimetable() {
 
       const response = await fetch("/api/courses", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: headers as any,
         body: JSON.stringify({ courses: processedCourses }),
       });
 
@@ -58,28 +80,37 @@ export default function GenerateTimetable() {
       message += `${result.createdCount} created`;
       if (result.skippedCount > 0)
         message += `, ${result.skippedCount} skipped`;
-      if (result.errorCount > 0) message += `, ${result.errorCount} errors`;
 
       setAlertMessage(message);
+      setIsSuccess(true);
     } catch (error: any) {
       console.error("Error saving courses:", error);
       setAlertMessage(`Failed to process courses: ${error.message || error}`);
+      setIsSuccess(false);
     }
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setShowModal(false); // ✅ close modal
-    setIsGenerating(true); // ✅ show loading
+    setShowModal(false);
+    setIsGenerating(true);
+    setAlertMessage("");
 
     try {
+      const headers = getHeaders();
+      // @ts-ignore
+      if (!headers["X-User-Id"]) {
+        router.push("/login");
+        return;
+      }
+
       if (!generationParams.startDate) {
         throw new Error("Please select a start date");
       }
 
       const response = await fetch("/api/generate-timetable", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: headers as any,
         body: JSON.stringify({
           startDate: generationParams.startDate,
           weeks: generationParams.weeks,
@@ -88,233 +119,299 @@ export default function GenerateTimetable() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        // console.log('Detailed error:', errorData); // Log the full error details
         throw new Error(`Generation failed: ${JSON.stringify(errorData)}`);
       }
 
       const generatedTimetable = await response.json();
-      // console.log('Generated timetable:', generatedTimetable); // Log successful generation
       setTimetable(generatedTimetable);
       setAlertMessage("Timetable generated successfully!");
+      setIsSuccess(true);
     } catch (error: any) {
       console.error("Generation error:", error);
       setAlertMessage(`Generation failed: ${error.message || error}`);
+      setIsSuccess(false);
     } finally {
       setIsGenerating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 text-black">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-indigo-900 mb-8">
-          Generate Exam Timetable
-        </h1>
-
-        {alertMessage && (
-          <div
-            className={`mb-4 rounded p-4 shadow ${
-              alertMessage.toLowerCase().includes("failed") || alertMessage.toLowerCase().includes("error")
-                ? "bg-red-100 text-red-800"
-                : "bg-green-100 text-green-800"
-            }`}
-          >
-            {alertMessage}
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">
-            Upload Student Course Registration File
-          </h2>
-          <CSVUpload onFileParsed={handleFileParsed} />
+    <div className="space-y-8 animate-fade-in px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            Generate Timetable
+          </h1>
+          <p className="text-slate-500">
+            Upload course data and algorithmically generate your exam schedule.
+          </p>
         </div>
 
         <button
-          onClick={() => setShowModal(true)} // ✅ open modal only
-          className="px-6 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition duration-200 mb-8"
+          onClick={() => setShowModal(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg shadow-indigo-500/20"
         >
-          Generate Timetable
+          <Calendar className="w-4 h-4" />
+          Start Generation
         </button>
+      </div>
 
-        {/* ✅ Show loading text when generation is in progress and timetable is not ready */}
-        {isGenerating && timetable.length === 0 && (
-          <div className="text-center text-indigo-600 font-medium mb-6">
-            Generating timetable...
+      {alertMessage && (
+        <div className={`p-4 rounded-xl border flex items-start gap-3 ${isSuccess ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+          {isSuccess ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+          <p className="font-medium">{alertMessage}</p>
+        </div>
+      )}
+
+      {/* Step 1: Upload */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+          <div className="p-2 bg-blue-100/50 text-blue-600 rounded-lg">
+            <FileUp className="w-5 h-5" />
           </div>
-        )}
+          <h2 className="text-lg font-bold text-slate-900">Step 1: Upload Course Data</h2>
+        </div>
+        <div className="p-6 lg:p-8">
+          <p className="text-slate-600 mb-6 max-w-2xl">
+            Upload a CSV file containing course codes and student counts. This data will be used to optimize room allocation.
+          </p>
+          <CSVUpload onFileParsed={handleFileParsed} />
+        </div>
+      </div>
 
-        {timetable.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">
-              Generated Exam Timetable
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border p-2">Session</th>
-                    <th className="border p-2">Seat Color</th>
-                    <th className="border p-2">Courses Assigned</th>
-                    <th className="border p-2">Total Students</th>
-                    <th className="border p-2">Utilization</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timetable.map((session, idx) => (
-                    <Fragment key={idx}>
-                      <tr>
-                        <td className="border p-2 font-bold" rowSpan={2}>
-                          {session.session}
-                          <div className="text-sm text-gray-500">
-                            {session.date}
-                          </div>
-                        </td>
-                        <td className="border p-2 bg-red-50">Red</td>
-                        <td className="border p-2">
-                          {Array.isArray(session.red.courses)
-                            ? session.red.courses
-                                .map(
-                                  (c: { code: string; students: number }) =>
-                                    `${c.code} (${c.students})`
-                                )
+      {isGenerating && timetable.length === 0 && (
+        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
+          <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-100 border-t-indigo-600 mb-4"></div>
+          <h3 className="text-lg font-bold text-slate-900">Generating Timetable...</h3>
+          <p className="text-slate-500">Optimizing slots and allocations. This may take a moment.</p>
+        </div>
+      )}
 
-                                .join(", ")
-                            : session.red.courses}
-                        </td>
-                        <td className="border p-2">{session.red.total}</td>
-                        <td className="border p-2">
-                          {session.red.utilization}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="border p-2 bg-blue-50">Blue</td>
-                        <td className="border p-2">
-                          {Array.isArray(session.blue.courses)
-                            ? session.blue.courses
-                                .map(
-                                  (c: { code: string; students: number }) =>
-                                    `${c.code} (${c.students})`
-                                )
-
-                                .join(", ")
-                            : session.blue.courses}
-                        </td>
-                        <td className="border p-2">{session.blue.total}</td>
-                        <td className="border p-2">
-                          {session.blue.utilization}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
+      {timetable.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
+          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100/50 text-green-600 rounded-lg">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Generated Schedule</h2>
+                <p className="text-sm text-slate-500">Optimization complete</p>
+              </div>
             </div>
 
-            {/* ✅ Add buttons here, still inside the same div */}
-
-            <div className="mt-6 flex gap-4">
+            <div className="flex gap-2">
               <button
                 onClick={() => downloadCSV(timetable)}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
-                Download as CSV
+                <Download className="w-4 h-4" />
+                CSV
               </button>
               <button
                 onClick={() => downloadJSON(timetable)}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
-                Download as JSON
+                <Download className="w-4 h-4" />
+                JSON
               </button>
             </div>
           </div>
-        )}
 
-        <Modal
-          open={showModal} // ✅ updated to use showModal
-          onClose={() => setShowModal(false)}
-          title="Generate Timetable"
-        >
-          <form onSubmit={handleGenerate} className="space-y-4">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                <tr>
+                  <th className="p-4">Session & Date</th>
+                  <th className="p-4">Seat Config</th>
+                  <th className="p-4">Allocated Courses</th>
+                  <th className="p-4">Capacity Usage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {timetable.map((session, idx) => (
+                  <Fragment key={idx}>
+                    {/* Red Row */}
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 font-medium text-slate-900 bg-white border-b border-slate-50" rowSpan={2}>
+                        <div className="flex items-start gap-3">
+                          <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="font-bold">{session.session}</div>
+                            <div className="text-slate-500 font-normal mt-0.5">{session.date}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          Red Hall
+                        </span>
+                      </td>
+                      <td className="p-4 text-slate-600 max-w-xs truncate">
+                        {Array.isArray(session.red.courses)
+                          ? session.red.courses.map((c: any) => `${c.code} (${c.students})`).join(", ") || "-"
+                          : session.red.courses}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-red-500 rounded-full"
+                              style={{ width: session.red.utilization }}
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{session.red.utilization}</span>
+                        </div>
+                      </td>
+                    </tr>
+                    {/* Blue Row */}
+                    <tr className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 border-l border-slate-100">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Blue Hall
+                        </span>
+                      </td>
+                      <td className="p-4 text-slate-600 max-w-xs truncate">
+                        {Array.isArray(session.blue.courses)
+                          ? session.blue.courses.map((c: any) => `${c.code} (${c.students})`).join(", ") || "-"
+                          : session.blue.courses}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full"
+                              style={{ width: session.blue.utilization }}
+                            />
+                          </div>
+                          <span className="text-xs text-slate-500">{session.blue.utilization}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4 p-4">
+            {timetable.map((session, idx) => (
+              <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start gap-3 mb-4 pb-3 border-b border-slate-100">
+                  <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900">{session.session}</div>
+                    <div className="text-sm text-slate-500">{session.date}</div>
+                  </div>
+                </div>
+
+                {/* Red Hall Mobile */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      Red Hall
+                    </span>
+                    <span className="text-xs text-slate-500">{session.red.utilization}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 mb-2">
+                    {Array.isArray(session.red.courses)
+                      ? session.red.courses.map((c: any) => `${c.code} (${c.students})`).join(", ") || "No courses"
+                      : session.red.courses}
+                  </p>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: session.red.utilization }} />
+                  </div>
+                </div>
+
+                {/* Blue Hall Mobile */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Blue Hall
+                    </span>
+                    <span className="text-xs text-slate-500">{session.blue.utilization}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 mb-2">
+                    {Array.isArray(session.blue.courses)
+                      ? session.blue.courses.map((c: any) => `${c.code} (${c.students})`).join(", ") || "No courses"
+                      : session.blue.courses}
+                  </p>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: session.blue.utilization }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Configuration Modal */}
+      <Modal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        title="Configure Generation"
+      >
+        <form onSubmit={handleGenerate} className="space-y-5">
+          <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium">
-                Exam Start Date
-              </label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Start Date</label>
               <input
                 type="date"
                 value={generationParams.startDate}
-                onChange={(e) =>
-                  setGenerationParams({
-                    ...generationParams,
-                    startDate: e.target.value,
-                  })
-                }
-                className="w-full rounded border p-2"
+                onChange={(e) => setGenerationParams({ ...generationParams, startDate: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                 required
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Timetable will cover 3 weeks (15 weekdays)
-              </p>
             </div>
-
             <div>
-              <label className="mb-1 block text-sm font-medium">
-                Duration (in weeks)
-              </label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Duration (Weeks)</label>
               <input
                 type="number"
-                min={1}
-                max={10}
+                min="1"
+                max="10"
                 value={generationParams.weeks}
-                onChange={(e) =>
-                  setGenerationParams({
-                    ...generationParams,
-                    weeks: Number(e.target.value),
-                  })
-                }
-                className="w-full rounded border p-2"
+                onChange={(e) => setGenerationParams({ ...generationParams, weeks: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
                 required
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Each week includes 5 weekdays × 2 sessions/day
-              </p>
             </div>
+          </div>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h3 className="font-bold mb-2">Scheduling Constraints:</h3>
-              <ul className="text-sm list-disc pl-5 space-y-1">
-                <li>
-                  5 weekdays × 2 sessions/day and not more than 30 sessions
-                </li>
-                <li>
-                  One hall with 96 red seats and 192 blue seats per session
-                </li>
-                <li>All students from a course use the same seat color</li>
-                <li>
-                  Large courses (&gt;96 students) assigned exclusively to blue
-                  seats
-                </li>
-              </ul>
-            </div>
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <h4 className="text-sm font-bold text-indigo-900 mb-2">Algorithm Rules</h4>
+            <ul className="text-xs text-indigo-800 space-y-1 list-disc pl-4 opacity-80">
+              <li>Optimizes for minimal wasted space (Best-Fit Bin Packing)</li>
+              <li>Max 30 sessions (5 days × 2 slots × 3 weeks)</li>
+              <li>Separate Red (96) and Blue (192) capacities</li>
+              <li>Large courses ({'>'}96) get exclusive Blue room access</li>
+            </ul>
+          </div>
 
-            <div className="flex justify-end space-x-2">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="rounded border px-4 py-2"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="rounded bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700"
-              >
-                Generate Timetable
-              </button>
-            </div>
-          </form>
-        </Modal>
-      </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all"
+            >
+              Generate Schedule
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

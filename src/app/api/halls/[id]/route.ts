@@ -6,26 +6,36 @@ import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 // DELETE: Delete a hall by ID
 export async function DELETE(
-  _: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
     // Await the params
     const params = await context.params;
     const { id } = params;
+    const userId = request.headers.get("X-User-Id");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       return NextResponse.json({ error: "Invalid hall ID." }, { status: 400 });
     }
 
+    // Verify ownership
+    const hall = await prisma.hall.findFirst({
+      where: { id: parsedId, userId: parseInt(userId) }
+    });
+
+    if (!hall) {
+      return NextResponse.json({ error: "Hall not found or unauthorized" }, { status: 404 });
+    }
+
     const deletedHall = await prisma.hall.delete({
       where: { id: parsedId },
     });
-
-    if (!deletedHall) {
-      return NextResponse.json({ error: "Hall not found." }, { status: 404 });
-    }
 
     return NextResponse.json(
       { message: "Hall deleted successfully." },
@@ -63,11 +73,26 @@ export async function PATCH(
     // Await the params
     const params = await context.params;
     const { id } = params;
+    const userId = request.headers.get("X-User-Id");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const parsedId = parseInt(id, 10);
     if (isNaN(parsedId)) {
       return NextResponse.json({ error: "Invalid hall ID." }, { status: 400 });
+    }
+
+    // Verify ownership
+    const hall = await prisma.hall.findFirst({
+      where: { id: parsedId, userId: parseInt(userId) }
+    });
+
+    if (!hall) {
+      return NextResponse.json({ error: "Hall not found or unauthorized" }, { status: 404 });
     }
 
     const { name, capacity } = body;
@@ -95,10 +120,6 @@ export async function PATCH(
       where: { id: parsedId },
       data: updateData,
     });
-
-    if (!updatedHall) {
-      return NextResponse.json({ error: "Hall not found." }, { status: 404 });
-    }
 
     return NextResponse.json(updatedHall, { status: 200 });
   } catch (error: unknown) {

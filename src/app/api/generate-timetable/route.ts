@@ -4,6 +4,7 @@ import { timetableSchema } from "@/lib/schemas/timetableSchema";
 
 const prisma = new PrismaClient();
 
+// Domain Models
 interface Course {
   code: string;
   students: number;
@@ -23,28 +24,22 @@ interface Session {
   blue: RoomData;
 }
 
+// Constants
+const RED_CAP = 96;
+const BLUE_CAP = 192;
+
 // Helper function to calculate utilization percentage
-const calculateUtilization = (total: number, capacity: number) => {
+const calculateUtilization = (total: number, capacity: number): string => {
   return `${((total / capacity) * 100).toFixed(1)}%`;
 };
 
-// Pure backend greedy algorithm for timetable generation with better bin-packing
-function generateTimetableGreedy(
+// Best-fit bin packing algorithm for optimal timetable generation
+function generateTimetableBestFit(
   courses: Course[],
-  sessionsMeta: { session: string; date: string }[]
+  sessionsMeta: { session: string; date: string }[],
 ): Session[] {
-  const RED_CAP = 96;
-  const BLUE_CAP = 192;
-
-  // Separate courses by type for strategic placement
-  const largeCourses = courses.filter((c) => c.students > 96).sort((a, b) => b.students - a.students);
-  const mediumSmallCourses = courses.filter((c) => c.students <= 96);
-  
-  // RANDOMIZATION: Shuffle medium/small courses for different arrangements each time
-  const shuffledMediumSmall = [...mediumSmallCourses].sort(() => Math.random() - 0.5);
-  
-  // Also shuffle sessions to randomize which sessions get used first
-  const shuffledSessions = [...sessionsMeta].sort(() => Math.random() - 0.5);
+  // Sort courses by size (largest first) for best-fit placement
+  const sortedCourses = [...courses].sort((a, b) => b.students - a.students);
 
   // Initialize all sessions with empty rooms
   const sessions: Session[] = sessionsMeta.map((meta) => ({
@@ -58,116 +53,93 @@ function generateTimetableGreedy(
   const placedCourses = new Set<string>();
   const unplacedCourses: Course[] = [];
 
-  console.log(`\n🎯 RANDOMIZED GREEDY ALGORITHM TIMETABLE GENERATION`);
+  console.log(`\n🎯 BEST-FIT BIN PACKING TIMETABLE GENERATION`);
   console.log(`Total courses: ${courses.length}`);
-  console.log(`   Large courses (>96): ${largeCourses.length} (fixed order)`);
-  console.log(`   Medium/Small courses (≤96): ${mediumSmallCourses.length} (RANDOMIZED)`);
-  console.log(`Total sessions: ${sessions.length} (RANDOMIZED order)`);
-  console.log(`Total capacity: ${sessions.length * (RED_CAP + BLUE_CAP)} students`);
-  console.log(`🎲 Each generation will produce a different arrangement!\n`);
-  
+  console.log(`Total sessions: ${sessions.length}`);
+  console.log(
+    `Total capacity: ${sessions.length * (RED_CAP + BLUE_CAP)} students`,
+  );
+  console.log(`📦 Each course placed in room with LEAST wasted space\n`);
+
   // CRITICAL CHECK: Can we actually fit this?
+  const largeCourses = courses.filter((c) => c.students > 96);
   if (largeCourses.length > sessions.length) {
     throw new Error(
-      `Cannot fit ${largeCourses.length} large courses into ${sessions.length} sessions. Each large course needs its own BLUE room. Need at least ${Math.ceil(largeCourses.length / 10)} weeks.`
+      `Cannot fit ${largeCourses.length} large courses into ${sessions.length} sessions. Each large course needs its own BLUE room. Need at least ${Math.ceil(largeCourses.length / 10)} weeks.`,
     );
   }
-  
+
   // Calculate capacity requirements
   const totalStudents = courses.reduce((sum, c) => sum + c.students, 0);
   const totalCapacity = sessions.length * (RED_CAP + BLUE_CAP);
   const utilizationNeeded = ((totalStudents / totalCapacity) * 100).toFixed(1);
-  
-  // Check if we have enough capacity (accounting for fragmentation)
-  const avgCapacityPerSession = (RED_CAP + BLUE_CAP) * 0.85; // 85% utilization target
-  const sessionsNeeded = Math.ceil(totalStudents / avgCapacityPerSession);
-  const weeksNeeded = Math.ceil(sessionsNeeded / 10);
-  
-  console.log(`Total students: ${totalStudents}, Need ${utilizationNeeded}% utilization`);
-  console.log(`Minimum sessions needed (with fragmentation): ${sessionsNeeded} (${weeksNeeded} weeks)\n`);
-  
-  if (sessions.length < sessionsNeeded) {
-    const currentWeeks = Math.ceil(sessions.length / 10);
-    throw new Error(
-      `Insufficient capacity: ${courses.length} courses (${totalStudents} students) need at least ${sessionsNeeded} sessions. You selected ${sessions.length} sessions (${currentWeeks} weeks). Minimum required: ${weeksNeeded} weeks.`
-    );
-  }
 
-  // NEW STRATEGY: Fill RED rooms first, then place large courses, then fill remaining BLUE
-  
-  // PHASE 1: Fill ALL RED rooms with smaller courses first (RANDOMIZED ORDER)
-  console.log(`\n📍 PHASE 1: Filling RED rooms with small/medium courses... (RANDOMIZED)`);
-  for (const course of shuffledMediumSmall) {
-    let placed = false;
-    
-    for (const session of sessions) {
-      if (session.red.total + course.students <= RED_CAP) {
-        session.red.courses.push({ code: course.code, students: course.students });
-        session.red.total += course.students;
-        session.red.utilization = calculateUtilization(session.red.total, RED_CAP);
-        placedCourses.add(course.code);
-        placed = true;
-        break;
+  console.log(
+    `Total students: ${totalStudents}, Need ${utilizationNeeded}% utilization`,
+  );
+
+  // Helper function to find best fit for a course
+  const findBestFit = (
+    course: Course,
+  ): { sessionIndex: number; roomType: "red" | "blue" } | null => {
+    let bestFit = null;
+    let minWaste = Infinity;
+
+    sessions.forEach((session, index) => {
+      // Try RED room
+      if (course.students <= RED_CAP) {
+        const waste = RED_CAP - (session.red.total + course.students);
+        if (waste >= 0 && waste < minWaste) {
+          minWaste = waste;
+          bestFit = { sessionIndex: index, roomType: "red" };
+        }
       }
-    }
-    
-    if (placed) {
-      console.log(`   ✅ ${course.code}(${course.students}) → RED`);
-    } else {
-      // Keep for Phase 3
-    }
-  }
-  console.log(`   Placed ${placedCourses.size} courses in RED rooms`);
 
-  // PHASE 2: Place large courses in BLUE rooms (they MUST be alone) - RANDOMIZED SESSION ORDER
-  console.log(`\n📍 PHASE 2: Placing ${largeCourses.length} large courses in BLUE rooms... (RANDOMIZED session order)`);
-  for (const course of largeCourses) {
-    let placed = false;
-    
-    // Use shuffled sessions to randomize which sessions get used first
-    for (const sessionMeta of shuffledSessions) {
-      const session = sessions.find(s => s.session === sessionMeta.session);
-      if (!session) continue;
-      // Find an EMPTY BLUE room
-      if (session.blue.courses.length === 0) {
-        session.blue.courses.push({ code: course.code, students: course.students });
-        session.blue.total = course.students;
-        session.blue.utilization = calculateUtilization(course.students, BLUE_CAP);
-        placedCourses.add(course.code);
-        placed = true;
-        console.log(`   ✅ ${course.code}(${course.students}) → ${session.session} BLUE (alone)`);
-        break;
-      }
-    }
-
-    if (!placed) {
-      console.warn(`   ❌ No empty BLUE room for ${course.code}(${course.students})`);
-      unplacedCourses.push(course);
-    }
-  }
-
-  // PHASE 3: Place remaining small/medium courses in available BLUE rooms (RANDOMIZED ORDER)
-  const remainingCourses = shuffledMediumSmall.filter(c => !placedCourses.has(c.code));
-  console.log(`\n📍 PHASE 3: Placing ${remainingCourses.length} remaining courses in BLUE rooms... (RANDOMIZED)`);
-  
-  for (const course of remainingCourses) {
-    let placed = false;
-    
-    for (const session of sessions) {
+      // Try BLUE room (if not occupied by large course and course fits)
       const hasLargeCourse = session.blue.courses.some((c) => c.students > 96);
-      if (!hasLargeCourse && session.blue.total + course.students <= BLUE_CAP) {
-        session.blue.courses.push({ code: course.code, students: course.students });
-        session.blue.total += course.students;
-        session.blue.utilization = calculateUtilization(session.blue.total, BLUE_CAP);
-        placedCourses.add(course.code);
-        placed = true;
-        console.log(`   ✅ ${course.code}(${course.students}) → ${session.session} BLUE (${session.blue.total}/${BLUE_CAP})`);
-        break;
+      if (!hasLargeCourse && course.students <= BLUE_CAP) {
+        const waste = BLUE_CAP - (session.blue.total + course.students);
+        if (waste >= 0 && waste < minWaste) {
+          minWaste = waste;
+          bestFit = { sessionIndex: index, roomType: "blue" };
+        }
       }
-    }
 
-    if (!placed) {
-      console.warn(`   ❌ Could not place ${course.code}(${course.students}) - NO SPACE FOUND`);
+      // Special case: Large courses (>96) must go alone in BLUE
+      if (course.students > 96 && session.blue.courses.length === 0) {
+        const waste = BLUE_CAP - course.students;
+        if (waste >= 0 && waste < minWaste) {
+          minWaste = waste;
+          bestFit = { sessionIndex: index, roomType: "blue" };
+        }
+      }
+    });
+
+    return bestFit;
+  };
+
+  // Place each course using best-fit algorithm
+  for (const course of sortedCourses) {
+    const bestFit = findBestFit(course);
+
+    if (bestFit) {
+      const { sessionIndex, roomType } = bestFit;
+      const session = sessions[sessionIndex];
+      const room = session[roomType];
+
+      room.courses.push({ code: course.code, students: course.students });
+      room.total += course.students;
+      room.utilization = calculateUtilization(
+        room.total,
+        roomType === "red" ? RED_CAP : BLUE_CAP,
+      );
+
+      placedCourses.add(course.code);
+      console.log(
+        `   ✅ ${course.code}(${course.students}) → ${session.session} ${roomType.toUpperCase()} (${room.total}/${roomType === "red" ? RED_CAP : BLUE_CAP})`,
+      );
+    } else {
+      console.warn(`   ❌ No fit found for ${course.code}(${course.students})`);
       unplacedCourses.push(course);
     }
   }
@@ -179,8 +151,10 @@ function generateTimetableGreedy(
 
   if (unplacedCourses.length > 0) {
     console.error(`\n❌ UNPLACED COURSES (${unplacedCourses.length}):`);
-    unplacedCourses.forEach((c) => console.error(`   - ${c.code}(${c.students}) students`));
-    
+    unplacedCourses.forEach((c) =>
+      console.error(`   - ${c.code}(${c.students}) students`),
+    );
+
     // DIAGNOSTIC: Analyze what space is actually available
     console.error(`\n🔍 DIAGNOSTIC - Analyzing available space:`);
     let totalRedUsed = 0;
@@ -188,67 +162,102 @@ function generateTimetableGreedy(
     let redRoomsWithSpace = 0;
     let blueRoomsWithSpace = 0;
     let blueRoomsWithLargeCourse = 0;
-    
+
     sessions.forEach((s) => {
       totalRedUsed += s.red.total;
       totalBlueUsed += s.blue.total;
       if (s.red.total < RED_CAP) redRoomsWithSpace++;
-      const hasLarge = s.blue.courses.some(c => c.students > 96);
+      const hasLarge = s.blue.courses.some((c) => c.students > 96);
       if (hasLarge) blueRoomsWithLargeCourse++;
       if (!hasLarge && s.blue.total < BLUE_CAP) blueRoomsWithSpace++;
     });
-    
+
     const totalRedCapacity = sessions.length * RED_CAP;
     const totalBlueCapacity = sessions.length * BLUE_CAP;
     const redUtilization = ((totalRedUsed / totalRedCapacity) * 100).toFixed(1);
-    const blueUtilization = ((totalBlueUsed / totalBlueCapacity) * 100).toFixed(1);
-    
-    console.error(`   RED rooms: ${totalRedUsed}/${totalRedCapacity} used (${redUtilization}%)`);
-    console.error(`   RED rooms with space: ${redRoomsWithSpace}/${sessions.length}`);
-    console.error(`   BLUE rooms: ${totalBlueUsed}/${totalBlueCapacity} used (${blueUtilization}%)`);
-    console.error(`   BLUE rooms with large courses: ${blueRoomsWithLargeCourse}`);
-    console.error(`   BLUE rooms available for combining: ${blueRoomsWithSpace}`);
-    
-    const unplacedTotal = unplacedCourses.reduce((sum, c) => sum + c.students, 0);
-    const totalWastedSpace = (totalRedCapacity - totalRedUsed) + (totalBlueCapacity - totalBlueUsed);
-    
+    const blueUtilization = ((totalBlueUsed / totalBlueCapacity) * 100).toFixed(
+      1,
+    );
+
+    console.error(
+      `   RED rooms: ${totalRedUsed}/${totalRedCapacity} used (${redUtilization}%)`,
+    );
+    console.error(
+      `   RED rooms with space: ${redRoomsWithSpace}/${sessions.length}`,
+    );
+    console.error(
+      `   BLUE rooms: ${totalBlueUsed}/${totalBlueCapacity} used (${blueUtilization}%)`,
+    );
+    console.error(
+      `   BLUE rooms with large courses: ${blueRoomsWithLargeCourse}`,
+    );
+    console.error(
+      `   BLUE rooms available for combining: ${blueRoomsWithSpace}`,
+    );
+
+    const unplacedTotal = unplacedCourses.reduce(
+      (sum, c) => sum + c.students,
+      0,
+    );
+    const totalWastedSpace =
+      totalRedCapacity - totalRedUsed + (totalBlueCapacity - totalBlueUsed);
+
     console.error(`\n   Unplaced courses total: ${unplacedTotal} students`);
     console.error(`   Total wasted space: ${totalWastedSpace} students`);
-    console.error(`   Theoretical fit: ${unplacedTotal <= totalWastedSpace ? 'YES - Algorithm issue!' : 'NO - Need more sessions'}`);
-    
-    const diagnostics = [
-      `Failed to place ${unplacedCourses.length} courses (${unplacedTotal} students)`,
-      `RED: ${totalRedUsed}/${totalRedCapacity} used (${redUtilization}%), ${redRoomsWithSpace} rooms have space`,
-      `BLUE: ${totalBlueUsed}/${totalBlueCapacity} used (${blueUtilization}%), ${blueRoomsWithLargeCourse} blocked by large courses, ${blueRoomsWithSpace} available`,
-      `Total wasted space: ${totalWastedSpace} students`,
-      `Recommendation: ${unplacedTotal <= totalWastedSpace ? 'Increase weeks to 5+ to reduce fragmentation' : `Need ${Math.ceil((sessions.length + Math.ceil(unplacedTotal / 144)) / 10)} weeks minimum`}`
-    ].join(' | ');
-    
-    throw new Error(diagnostics);
+    console.error(
+      `   Theoretical fit: ${unplacedTotal <= totalWastedSpace ? "YES - Algorithm issue!" : "NO - Need more sessions"}`,
+    );
+
+    throw new Error(
+      `Failed to place ${unplacedCourses.length} courses. Total wasted space: ${totalWastedSpace} students. ${unplacedTotal <= totalWastedSpace ? "Algorithm needs improvement" : "Need more sessions"}`,
+    );
   }
 
-  // Verify no capacity violations
+  // Verify no capacity violations and large course rule
   for (const session of sessions) {
     if (session.red.total > RED_CAP) {
-      throw new Error(`RED room capacity violated in ${session.session}: ${session.red.total}/${RED_CAP}`);
+      throw new Error(
+        `RED room capacity violated in ${session.session}: ${session.red.total}/${RED_CAP}`,
+      );
     }
     if (session.blue.total > BLUE_CAP) {
-      throw new Error(`BLUE room capacity violated in ${session.session}: ${session.blue.total}/${BLUE_CAP}`);
+      throw new Error(
+        `BLUE room capacity violated in ${session.session}: ${session.blue.total}/${BLUE_CAP}`,
+      );
     }
 
     // Check large course alone rule
     const largeCourseInBlue = session.blue.courses.find((c) => c.students > 96);
     if (largeCourseInBlue && session.blue.courses.length > 1) {
       throw new Error(
-        `Large course ${largeCourseInBlue.code} not alone in ${session.session} BLUE room`
+        `Large course ${largeCourseInBlue.code} not alone in ${session.session} BLUE room`,
       );
     }
   }
 
+  // Check for empty seats (should be none with best-fit)
+  const emptyRedRooms = sessions.filter((s) => s.red.total === 0).length;
+  const emptyBlueRooms = sessions.filter((s) => s.blue.total === 0).length;
+
+  if (emptyRedRooms > 0 || emptyBlueRooms > 0) {
+    console.warn(
+      `⚠️  WARNING: ${emptyRedRooms} empty RED rooms, ${emptyBlueRooms} empty BLUE rooms`,
+    );
+    console.warn(`   This indicates the algorithm could be improved further`);
+  }
+
   // Log statistics
-  const sessionsUsed = sessions.filter((s) => s.red.courses.length > 0 || s.blue.courses.length > 0).length;
-  const totalRedUsage = sessions.reduce((sum, s) => sum + s.red.courses.length, 0);
-  const totalBlueUsage = sessions.reduce((sum, s) => sum + s.blue.courses.length, 0);
+  const sessionsUsed = sessions.filter(
+    (s) => s.red.courses.length > 0 || s.blue.courses.length > 0,
+  ).length;
+  const totalRedUsage = sessions.reduce(
+    (sum, s) => sum + s.red.courses.length,
+    0,
+  );
+  const totalBlueUsage = sessions.reduce(
+    (sum, s) => sum + s.blue.courses.length,
+    0,
+  );
 
   console.log(`\n✅ FINAL STATISTICS:`);
   console.log(`   Total sessions: ${sessions.length}`);
@@ -256,31 +265,43 @@ function generateTimetableGreedy(
   console.log(`   RED room slots used: ${totalRedUsage}`);
   console.log(`   BLUE room slots used: ${totalBlueUsage}`);
   console.log(`   Total courses scheduled: ${placedCourses.size}`);
+  console.log(`   Empty RED rooms: ${emptyRedRooms}`);
+  console.log(`   Empty BLUE rooms: ${emptyBlueRooms}`);
 
   return sessions;
 }
 
+// Use Case: Generate Timetable
 export async function POST(request: Request) {
   try {
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { startDate, weeks } = await request.json();
 
+    // Input Validation
     if (!startDate || !weeks) {
       return NextResponse.json(
         { error: "Start date and duration (in weeks) are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (weeks < 1 || weeks > 10) {
       return NextResponse.json(
         { error: "Weeks must be between 1 and 10." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const totalSessions = weeks * 5 * 2;
 
+    // Fetch Courses from Database (ISOLATED)
     const dbCourses = await prisma.course.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      where: { userId: parseInt(userId) } as any,
       select: {
         code: true,
         students: true,
@@ -291,14 +312,18 @@ export async function POST(request: Request) {
     if (!dbCourses.length) {
       return NextResponse.json(
         {
-          error: "No courses found in database. Please upload course data first.",
+          error:
+            "No courses found in database. Please upload course data first.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
-    
+
+    // Course Statistics
     const largeCourseCount = dbCourses.filter((c) => c.students > 96).length;
-    const mediumCourseCount = dbCourses.filter((c) => c.students >= 65 && c.students <= 96).length;
+    const mediumCourseCount = dbCourses.filter(
+      (c) => c.students >= 65 && c.students <= 96,
+    ).length;
     const smallCourseCount = dbCourses.filter((c) => c.students < 65).length;
 
     console.log("\n📊 COURSE STATISTICS:");
@@ -307,6 +332,7 @@ export async function POST(request: Request) {
     console.log(`   Medium (65-96): ${mediumCourseCount} courses`);
     console.log(`   Small (<65): ${smallCourseCount} courses`);
 
+    // Generate Session Metadata
     const start = new Date(startDate);
     const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
     const sessionsMeta = [];
@@ -325,22 +351,24 @@ export async function POST(request: Request) {
           {
             session: `Week ${week + 1} ${dayNames[day]} Afternoon`,
             date: dateString,
-          }
+          },
         );
       }
     }
 
-    // Generate timetable using greedy algorithm
-    const coursesForScheduling = dbCourses.map(c => ({
-                code: c.code,
-                students: c.students,
-                department: c.department ?? undefined
+    // Generate Timetable
+    const coursesForScheduling = dbCourses.map((c) => ({
+      code: c.code,
+      students: c.students,
+      department: c.department ?? undefined,
     }));
-    const timetable = generateTimetableGreedy(coursesForScheduling, sessionsMeta);
+    const timetable = generateTimetableBestFit(
+      coursesForScheduling,
+      sessionsMeta,
+    );
 
-    // Validate with schema
+    // Validate and Return
     const validated = timetableSchema.parse({ sessions: timetable });
-    
     return NextResponse.json(validated.sessions, { status: 200 });
   } catch (error) {
     console.error("Timetable generation error:", error);
@@ -361,7 +389,7 @@ export async function POST(request: Request) {
         error: errorMessage,
         details: errorDetails,
       },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     await prisma.$disconnect();

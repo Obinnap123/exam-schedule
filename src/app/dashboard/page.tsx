@@ -3,60 +3,117 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { Plus, Calendar, Users, BookOpen, School, AlertTriangle } from "lucide-react";
 
-function DashboardHome() {
+export default function DashboardHome() {
   const router = useRouter();
 
-  const [halls, setHalls] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [supervisors, setSupervisors] = useState([]);
+  const [halls, setHalls] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [supervisors, setSupervisors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch halls
-        const hallsRes = await fetch('/api/halls');
+        const storedUser = localStorage.getItem("user");
+        if (!storedUser) {
+          router.push("/login");
+          return;
+        }
+
+        const user = JSON.parse(storedUser);
+        const headers = {
+          "Content-Type": "application/json",
+          "X-User-Id": user.id.toString()
+        };
+
+        // Fetch using Promise.all for better performance
+        const [hallsRes, coursesRes, supervisorsRes] = await Promise.all([
+          fetch("/api/halls", { headers }),
+          fetch("/api/courses", { headers }),
+          fetch("/api/supervisors", { headers })
+        ]);
+
+        if (hallsRes.status === 401 || coursesRes.status === 401 || supervisorsRes.status === 401) {
+          localStorage.removeItem("user");
+          router.push("/login");
+          return;
+        }
+
         const hallsData = await hallsRes.json();
-        setHalls(hallsData);
-
-        // Fetch courses
-        const coursesRes = await fetch('/api/courses');
         const coursesData = await coursesRes.json();
-        setCourses(coursesData);
-
-        // Fetch supervisors
-        const supervisorsRes = await fetch('/api/supervisors');
         const supervisorsData = await supervisorsRes.json();
-        setSupervisors(supervisorsData);
+
+        setHalls(Array.isArray(hallsData) ? hallsData : []);
+        setCourses(Array.isArray(coursesData) ? coursesData : []);
+        setSupervisors(Array.isArray(supervisorsData) ? supervisorsData : []);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Error fetching data:", error);
+        setError("Failed to load dashboard data. Please try refreshing.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [router]);
 
   /* cards config */
   const cards = [
-    { label: "Halls", count: halls.length, href: "/dashboard/halls" },
-    { label: "Courses", count: courses.length, href: "/dashboard/courses" },
+    {
+      label: "Total Halls",
+      count: halls.length,
+      href: "/dashboard/halls",
+      icon: School,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+    },
+    {
+      label: "Active Courses",
+      count: courses.length,
+      href: "/dashboard/courses",
+      icon: BookOpen,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50",
+    },
     {
       label: "Supervisors",
       count: supervisors.length,
       href: "/dashboard/supervisors",
+      icon: Users,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
     },
   ];
 
   return (
     <div className="space-y-8">
       {/* greeting */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h1>
-        <p className="text-gray-600">Quick overview of your exam setup.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard</h1>
+          <p className="text-slate-500">
+            Welcome back! Here&apos;s what&apos;s happening today.
+          </p>
+        </div>
+
+        <Link
+          href="/dashboard/generate"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg shadow-indigo-500/20"
+        >
+          <Calendar className="w-4 h-4" />
+          Generate Timetable
+        </Link>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 shrink-0" />
+          <p>{error}</p>
+        </div>
+      )}
 
       {/* stat cards */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -64,55 +121,76 @@ function DashboardHome() {
           // Loading skeletons for cards
           <>
             {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-lg border p-6 shadow animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-3"></div>
-                <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+              <div
+                key={i}
+                className="rounded-2xl border border-slate-200 p-6 shadow-sm animate-pulse bg-white"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="h-4 bg-slate-100 rounded w-24 mb-3"></div>
+                    <div className="h-8 bg-slate-100 rounded w-16"></div>
+                  </div>
+                  <div className="w-12 h-12 bg-slate-100 rounded-xl"></div>
+                </div>
               </div>
             ))}
           </>
-        ) : cards.map((c) => (
-          <div
-            key={c.label}
-            onClick={() => router.push(c.href)}
-            className="cursor-pointer rounded-lg border p-6 shadow hover:shadow-md transition"
-          >
-            <p className="text-sm text-gray-500">{c.label}</p>
-            <p className="mt-2 text-3xl font-bold text-blue-700">{c.count}</p>
-          </div>
-        ))}
+        ) : (
+          cards.map((c) => (
+            <div
+              key={c.label}
+              onClick={() => router.push(c.href)}
+              className="group cursor-pointer rounded-2xl border border-slate-200 p-6 bg-white shadow-sm hover:shadow-md hover:border-indigo-200 transition-all duration-200"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">{c.label}</p>
+                  <p className="mt-3 text-3xl font-bold text-slate-900">
+                    {c.count}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-xl ${c.bg} ${c.color} group-hover:scale-110 transition-transform duration-200`}>
+                  <c.icon className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* quick actions */}
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold text-black">Quick actions</h2>
-        <div className="flex flex-wrap gap-4">
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold text-slate-900 border-b border-slate-200 pb-2">Quick Actions</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Link
             href="/dashboard/halls?add=true"
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            className="flex items-center justify-center gap-2 p-4 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 hover:shadow-sm transition-all font-medium"
           >
-            + Add Hall
+            <div className="p-1 rounded-full bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600">
+              <Plus className="w-4 h-4" />
+            </div>
+            Add Examination Hall
           </Link>
           <Link
             href="/dashboard/courses?add=true"
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            className="flex items-center justify-center gap-2 p-4 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 hover:shadow-sm transition-all font-medium"
           >
-            + Add Course
+            <div className="p-1 rounded-full bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600">
+              <Plus className="w-4 h-4" />
+            </div>
+            Add New Course
           </Link>
           <Link
-           href="/dashboard/supervisors?add=true"
-            className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            href="/dashboard/supervisors?add=true"
+            className="flex items-center justify-center gap-2 p-4 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-slate-50 hover:shadow-sm transition-all font-medium"
           >
-            + Add Supervisor
-          </Link>
-          <Link
-            href="/dashboard/generate"
-            className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
-          >
-            Generate Timetable
+            <div className="p-1 rounded-full bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600">
+              <Plus className="w-4 h-4" />
+            </div>
+            Register Supervisor
           </Link>
         </div>
       </div>
     </div>
   );
 }
-export default DashboardHome;

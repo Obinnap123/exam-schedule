@@ -8,6 +8,11 @@ const prisma = new PrismaClient();
 // POST: Create a new supervisor
 export async function POST(request: Request) {
   try {
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { fullName, email, phone, department } = body;
 
@@ -19,7 +24,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if a supervisor with the same email already exists
+    // Check if a supervisor with the same email already exists (limit scope to user if possible, but email usually unique global? 
+    // Usually emails are unique globally, but for isolation let's try to match user scope if logic permits. 
+    // Schema says "email String @unique". So it's global unique. 
+    // If User A adds "bob@test.com", User B cannot add "bob@test.com". This is a slight leak (existence probing), but standard unique constraint.
     const existingSupervisor = await prisma.supervisor.findUnique({
       where: { email },
     });
@@ -38,6 +46,7 @@ export async function POST(request: Request) {
         email,
         phone: phone || null, // Handle optional phone field
         department: department || null, // Handle optional department field
+        user: { connect: { id: parseInt(userId) } },
       },
     });
 
@@ -62,10 +71,20 @@ export async function POST(request: Request) {
     await prisma.$disconnect();
   }
 }
-// GET: Fetch all supervisors
-export async function GET() {
+// GET: Fetch all supervisors for the logged-in user
+export async function GET(request: Request) {
   try {
-    const supervisors = await prisma.supervisor.findMany();
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supervisors = await prisma.supervisor.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      where: {
+        userId: parseInt(userId)
+      } as any
+    });
     return NextResponse.json(supervisors, { status: 200 });
   } catch (error) {
     console.error(error);

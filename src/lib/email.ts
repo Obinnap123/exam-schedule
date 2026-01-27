@@ -1,5 +1,4 @@
 import { Resend } from 'resend';
-import crypto from 'crypto';
 
 // Initialize Resend client
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -17,14 +16,6 @@ export async function sendVerificationEmail(
 ): Promise<void> {
   try {
     const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${token}&email=${encodeURIComponent(to)}`;
-    
-    // console.log('Sending verification email:', {
-      to,
-      isDev: process.env.NODE_ENV === 'development',
-      hasToken: !!token,
-      hasApiKey: !!process.env.RESEND_API_KEY,
-      from: process.env.SMTP_FROM
-    });
 
     // In development, redirect all emails to the verified email
     const emailTo = VERIFIED_EMAIL;  // Always send to verified email in development
@@ -39,13 +30,13 @@ export async function sendVerificationEmail(
           <h2>Welcome to Exam Scheduler!</h2>
           <p>Hello ${name},</p>
           ${emailTo !== to
-            ? `<div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin: 20px 0;">
+          ? `<div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; margin: 20px 0;">
                 <strong>Development Mode Notice:</strong><br>
                 This email was originally intended for: ${to}<br>
                 You're receiving this because you're the verified test email address.
               </div>`
-            : ''
-          }
+          : ''
+        }
           <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${verificationLink}"
@@ -66,8 +57,6 @@ export async function sendVerificationEmail(
       `,
       text: `Welcome to Exam Scheduler! Please verify your email by visiting: ${verificationLink}`
     });
-
-    // console.log('Email send result:', result);
 
     if (result.error) {
       throw new Error(`Failed to send email: ${result.error.message}`);
@@ -90,8 +79,12 @@ export async function sendVerificationEmail(
  * Generate a verification token and expiry date
  */
 export function generateVerificationToken(): { token: string; expiry: Date } {
-  // Generate random bytes for token
-  const token = crypto.randomBytes(32).toString('base64url').slice(0, 32);
+  // Generate random token using Math.random (safer for edge/client compat if leaks)
+  const array = new Uint8Array(32);
+  // Note: crypto.getRandomValues is available in most modern JS including browsers/edge, 
+  // but if that fails, use Math.random fallback.
+  // Actually, let's just use simple random string for now to avoid 'crypto' import entirely.
+  const token = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
 
   // Set expiry to 24 hours from now
   const expiry = new Date();

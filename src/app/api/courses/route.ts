@@ -5,6 +5,11 @@ const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   try {
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { courses: inputCourses } = await request.json();
 
     if (!Array.isArray(inputCourses)) {
@@ -21,13 +26,17 @@ export async function POST(request: Request) {
       try {
         // Validate minimum requirements
         if (!course.code) {
-          results.skipped.push({...course, reason: "Missing course code"});
+          results.skipped.push({ ...course, reason: "Missing course code" });
           continue;
         }
 
-        // Check for existing course
-        const existingCourse = await prisma.course.findUnique({
-          where: { code: course.code.toUpperCase() }
+        // Check for existing course FOR THIS USER
+        const existingCourse = await prisma.course.findFirst({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          where: {
+            code: course.code.toUpperCase(),
+            userId: parseInt(userId)
+          } as any
         });
 
         if (existingCourse) {
@@ -45,13 +54,14 @@ export async function POST(request: Request) {
           students: Number(course.students) || 0,
           department: course.department || "General",
           level: course.level ? Number(course.level) : 100,
+          user: { connect: { id: parseInt(userId) } },
         };
 
         // Create new course
         const created = await prisma.course.create({
           data: courseData
         });
-        
+
         results.created.push(created);
       } catch (error: any) {
         console.error(`Error creating course ${course.code}:`, error);
@@ -70,8 +80,8 @@ export async function POST(request: Request) {
       skippedCount: results.skipped.length,
       errors: results.errors,
       errorCount: results.errors.length,
-      message: results.created.length > 0 
-        ? `Created ${results.created.length} courses` 
+      message: results.created.length > 0
+        ? `Created ${results.created.length} courses`
         : "No courses created"
     }, {
       status: results.created.length > 0 ? 201 : 400
@@ -90,9 +100,19 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const courses = await prisma.course.findMany();
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const courses = await prisma.course.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      where: {
+        userId: parseInt(userId),
+      } as any
+    });
     return NextResponse.json(courses, { status: 200 });
   } catch (error) {
     console.error("Error fetching courses:", error);
@@ -100,47 +120,8 @@ export async function GET() {
       { error: "Failed to fetch courses" },
       { status: 500 }
     );
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string }}) {
-  try {
-    const { id } = params;
-    const data = await request.json();
-    
-    const updatedCourse = await prisma.course.update({
-      where: { id: parseInt(id) },
-      data: {
-        ...data,
-        students: Number(data.students),
-        level: Number(data.level)
-      }
-    });
-    
-    return NextResponse.json(updatedCourse);
-  } catch (error) {
-    console.error("Error updating course:", error);
-    return NextResponse.json(
-      { error: "Failed to update course" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(request: Request, { params }: { params: { id: string }}) {
-  try {
-    const { id } = params;
-    
-    await prisma.course.delete({
-      where: { id: parseInt(id) }
-    });
-    
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting course:", error);
-    return NextResponse.json(
-      { error: "Failed to delete course" },
-      { status: 500 }
-    );
-  }
-}

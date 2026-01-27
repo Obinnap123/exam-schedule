@@ -8,6 +8,11 @@ const prisma = new PrismaClient();
 // POST: Create a new hall
 export async function POST(request: Request) {
   try {
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { name, capacity } = body;
 
@@ -32,6 +37,9 @@ export async function POST(request: Request) {
       data: {
         name,
         capacity: parsedCapacity,
+        user: {
+          connect: { id: parseInt(userId) }
+        }
       },
     });
 
@@ -61,10 +69,21 @@ export async function POST(request: Request) {
   }
 }
 
-// GET: Fetch all halls
-export async function GET() {
+// GET: Fetch all halls for the logged-in user
+export async function GET(request: Request) {
   try {
-    const halls = await prisma.hall.findMany();
+    const userId = request.headers.get("X-User-Id");
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const halls = await prisma.hall.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      where: {
+        userId: parseInt(userId),
+      } as any,
+      orderBy: { createdAt: "desc" },
+    });
     return NextResponse.json(halls, { status: 200 });
   } catch (error) {
     console.error(error);

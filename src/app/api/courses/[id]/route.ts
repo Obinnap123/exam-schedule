@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-export async function DELETE(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   // Await the params
   const params = await context.params;
   const { id } = params;
+  const userId = request.headers.get("X-User-Id");
+
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const parsedId = parseInt(id, 10);
 
   if (isNaN(parsedId)) {
@@ -12,6 +18,15 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
   }
 
   try {
+    // Verify ownership
+    const course = await prisma.course.findFirst({
+      where: { id: parsedId, userId: parseInt(userId) }
+    });
+
+    if (!course) {
+      return NextResponse.json({ error: "Course not found or unauthorized" }, { status: 404 });
+    }
+
     await prisma.course.delete({ where: { id: parsedId } });
     return NextResponse.json({ message: "Course deleted successfully!" }, { status: 200 });
   } catch (error) {
@@ -24,6 +39,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   // Await the params
   const params = await context.params;
   const { id } = params;
+  const userId = request.headers.get("X-User-Id");
+
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const parsedId = parseInt(id, 10);
 
   if (isNaN(parsedId)) {
@@ -41,6 +62,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 
   try {
+    // Verify ownership
+    const course = await prisma.course.findFirst({
+      where: { id: parsedId, userId: parseInt(userId) }
+    });
+
+    if (!course) {
+      return NextResponse.json({ error: "Course not found or unauthorized" }, { status: 404 });
+    }
+
     const updatedCourse = await prisma.course.update({
       where: { id: parsedId },
       data: {
