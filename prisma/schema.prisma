@@ -30,7 +30,7 @@ model User {
 
 model Course {
   id         Int         @id @default(autoincrement())
-  code       String      @unique
+  code       String
   title      String @default("Untitled")
   students   Int
   duration   Int?
@@ -43,6 +43,8 @@ model Course {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   timetables Timetable[]
+
+  @@unique([code, userId])
 }
 
 model Hall {

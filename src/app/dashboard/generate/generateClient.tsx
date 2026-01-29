@@ -44,6 +44,8 @@ export default function GenerateTimetable() {
         return;
       }
 
+      console.log("DEBUG: parsedData received from CSVUpload:", parsedData);
+
       const processedCourses = parsedData
         .map((course) => ({
           code: course.code || course.courseCode || "",
@@ -54,22 +56,28 @@ export default function GenerateTimetable() {
         }))
         .filter((course) => course.code);
 
+      console.log("DEBUG: processedCourses after mapping/filtering:", processedCourses);
+
       if (processedCourses.length === 0) {
         throw new Error("No valid course data found.");
       }
 
+      const payload = { courses: processedCourses };
+      console.log("DEBUG: Sending payload to /api/courses:", JSON.stringify(payload, null, 2));
+
       const response = await fetch("/api/courses", {
         method: "POST",
         headers: headers as any,
-        body: JSON.stringify({ courses: processedCourses }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
         const msg = result.message || "Failed to save courses";
-        const details = `Created: ${result.createdCount || 0}, Skipped: ${result.skippedCount || 0}`;
-        throw new Error(`${msg}. ${details}`);
+        const details = `Created: ${result.createdCount || 0}, Skipped: ${result.skippedCount || 0}, Errors: ${result.errorCount || 0}`;
+        const errorDetails = result.errors && result.errors.length > 0 ? ` First error: ${result.errors[0].course?.code} - ${result.errors[0].error}` : "";
+        throw new Error(`${msg}. ${details}${errorDetails}`);
       }
 
       if (result.createdCount > 0) {
