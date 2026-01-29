@@ -10,10 +10,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { courses: inputCourses } = await request.json();
+    const body = await request.json();
+    console.log("DEBUG: /api/courses received body:", JSON.stringify(body, null, 2));
+
+    const { courses: inputCourses } = body;
+    console.log("DEBUG: Extracted inputCourses:", {
+      exists: !!inputCourses,
+      isArray: Array.isArray(inputCourses),
+      length: Array.isArray(inputCourses) ? inputCourses.length : 'N/A'
+    });
 
     if (!Array.isArray(inputCourses)) {
-      return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+      console.error("DEBUG: inputCourses is not an array");
+      return NextResponse.json({ error: "Invalid data: 'courses' array required" }, { status: 400 });
+    }
+
+    if (inputCourses.length === 0) {
+      console.error("DEBUG: inputCourses is empty");
+      return NextResponse.json({ error: "No courses provided in payload" }, { status: 400 });
     }
 
     const results = {
@@ -82,7 +96,7 @@ export async function POST(request: Request) {
       errorCount: results.errors.length,
       message: results.created.length > 0
         ? `Created ${results.created.length} courses`
-        : "No courses created"
+        : `No courses created. Errors: ${results.errors.length}. First error: ${results.errors[0]?.error || 'N/A'}`
     }, {
       status: results.created.length > 0 ? 201 : 400
     });
